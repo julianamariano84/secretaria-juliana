@@ -118,15 +118,33 @@ def send_text(phone: str, message: str) -> dict:
             resp = requests.post(local_zapi_url, json=first_payload, headers=headers, timeout=15)
 
         if resp.ok:
+            # Some Z-API instances return HTTP 200 but include an error object in JSON
             try:
+                resp_json = resp.json()
+            except Exception:
+                resp_json = None
+
+            if resp_json and isinstance(resp_json, dict) and resp_json.get('error'):
+                # treat as failure and continue to next variant
+                err_msg = f"payload[{idx}] provider_error={resp_json.get('error')} message={resp_json.get('message')}"
+                errors.append(err_msg)
                 if debug:
                     log.debug('DEBUG_ZAPI: RESPONSE_STATUS=%s', str(getattr(resp, 'status_code', 'N/A')))
-                    log.debug('DEBUG_ZAPI: RESPONSE_JSON=%s', json.dumps(resp.json(), ensure_ascii=False))
-                return resp.json()
-            except Exception:
-                if debug:
-                    log.debug('DEBUG_ZAPI: RESPONSE_TEXT=%s', getattr(resp, 'text', ''))
-                return {"status": "ok", "raw": getattr(resp, 'text', '')}
+                    try:
+                        log.debug('DEBUG_ZAPI: RESPONSE_JSON=%s', json.dumps(resp_json, ensure_ascii=False))
+                    except Exception:
+                        log.debug('DEBUG_ZAPI: RESPONSE_TEXT=%s', getattr(resp, 'text', ''))
+                # continue to next payload variant instead of returning
+            else:
+                try:
+                    if debug:
+                        log.debug('DEBUG_ZAPI: RESPONSE_STATUS=%s', str(getattr(resp, 'status_code', 'N/A')))
+                        log.debug('DEBUG_ZAPI: RESPONSE_JSON=%s', json.dumps(resp_json if resp_json is not None else {}, ensure_ascii=False))
+                    return resp_json if resp_json is not None else {"status": "ok", "raw": getattr(resp, 'text', '')}
+                except Exception:
+                    if debug:
+                        log.debug('DEBUG_ZAPI: RESPONSE_TEXT=%s', getattr(resp, 'text', ''))
+                    return {"status": "ok", "raw": getattr(resp, 'text', '')}
 
         # record non-ok response for diagnostics and proceed to fallback
         errors.append(f"payload[fast] status={getattr(resp, 'status_code', 'N/A')} body={getattr(resp, 'text', '')}")
@@ -229,10 +247,22 @@ def send_text(phone: str, message: str) -> dict:
                         log.debug('DEBUG_ZAPI: ALT RESPONSE_TEXT=%s', body_text)
                     # if provider returns JSON accepted result, return it
                     if resp.ok:
+                        # check for JSON error payload even when HTTP 200
                         try:
-                            return resp.json()
+                            alt_json = resp.json()
                         except Exception:
-                            return {"status": "ok", "raw": body_text}
+                            alt_json = None
+
+                        if alt_json and isinstance(alt_json, dict) and alt_json.get('error'):
+                            alt_errors.append(f"alt[{u}] provider_error={alt_json.get('error')} message={alt_json.get('message')}")
+                            if debug:
+                                log.debug('DEBUG_ZAPI: ALT RESPONSE_JSON=%s', json.dumps(alt_json, ensure_ascii=False))
+                            # continue to next alt
+                        else:
+                            try:
+                                return alt_json if alt_json is not None else {"status": "ok", "raw": body_text}
+                            except Exception:
+                                return {"status": "ok", "raw": body_text}
                     # otherwise record and continue
                     alt_errors.append(f"alt[{u}] status={status} body={body_text}")
                 except Exception:
