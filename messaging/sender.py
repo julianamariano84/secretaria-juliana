@@ -177,4 +177,71 @@ def send_text(phone: str, message: str) -> dict:
             log.debug('DEBUG_ZAPI: RESPONSE_TEXT=%s', getattr(resp, 'text', ''))
 
     # If we reached here, none of the variants succeeded
-    raise RuntimeError("Z-API send failed; attempts:\n" + "\n".join(errors))
+    # Extra attempts: some Z-API instances expose slightly different paths or expect different payloads.
+    # If the provider returned NOT_FOUND we try alternate URLs and payload shapes to be resilient.
+    debug = os.getenv('DEBUG_ZAPI') == '1'
+    alt_errors = []
+
+    try:
+        # build alternate URLs
+        alt_urls = []
+        if local_zapi_url:
+            # swap send-text <-> send-message
+            alt_urls.append(local_zapi_url.replace('/send-text', '/send-message'))
+            alt_urls.append(local_zapi_url.replace('/send-message', '/send-text'))
+            # try removing /token/<token> segment (some instances accept token via header)
+            import re
+            alt_no_token = re.sub(r'/token/[^/]+', '', local_zapi_url)
+            alt_no_token = alt_no_token.rstrip('/')
+            alt_urls.append(alt_no_token + '/send-text')
+            alt_urls.append(alt_no_token + '/send-message')
+
+        # additional payload shapes to try when NOT_FOUND occurs
+        extra_payloads = [
+            {"to": phone, "message": message},
+            {"to": f"{phone}@c.us", "message": message},
+            {"to": phone, "type": "text", "text": {"body": message}},
+            {"chatId": phone, "body": message},
+            {"number": phone, "message": message},
+        ]
+
+        for u in alt_urls:
+            for pidx, p in enumerate(extra_payloads, 1):
+                if debug:
+                    log.debug('DEBUG_ZAPI: ALT TRY URL=%s PAYLOAD=%s', u, json.dumps(p, ensure_ascii=False))
+                try:
+                    # try without client-token header first
+                    h = headers.copy()
+                    if 'Client-Token' in h:
+                        del h['Client-Token']
+                    resp = requests.post(u, json=p, headers=h, timeout=15)
+                except Exception as e:
+                    alt_errors.append(f"alt request error {u} payload#{pidx}: {e}")
+                    if debug:
+                        log.exception('alt request error')
+                    continue
+
+                try:
+                    body_text = getattr(resp, 'text', '')
+                    status = getattr(resp, 'status_code', 'N/A')
+                    if debug:
+                        log.debug('DEBUG_ZAPI: ALT RESPONSE_STATUS=%s', str(status))
+                        log.debug('DEBUG_ZAPI: ALT RESPONSE_TEXT=%s', body_text)
+                    # if provider returns JSON accepted result, return it
+                    if resp.ok:
+                        try:
+                            return resp.json()
+                        except Exception:
+                            return {"status": "ok", "raw": body_text}
+                    # otherwise record and continue
+                    alt_errors.append(f"alt[{u}] status={status} body={body_text}")
+                except Exception:
+                    alt_errors.append(f"alt[{u}] unkfail")
+
+    except Exception:
+        if debug:
+            log.exception('extra alt attempts failed')
+
+    # Combine diagnostics and raise
+    all_err = errors + alt_errors
+    raise RuntimeError("Z-API send failed; attempts:\n" + "\n".join(all_err))
