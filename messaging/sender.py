@@ -109,9 +109,14 @@ def send_text(phone: str, message: str) -> dict:
         # If preference is to try /send-message first, use that URL when available
         tried_urls = []
         if preferred == 'send-message' or preferred is None:
+            # if we have both variants, try /send-message first then fall back to the provided URL
             if send_message_url:
                 tried_urls.append(send_message_url)
                 resp = requests.post(send_message_url, json=first_payload, headers=headers, timeout=15)
+                if not resp.ok:
+                    # try original URL as fallback for the fast path
+                    tried_urls.append(local_zapi_url)
+                    resp = requests.post(local_zapi_url, json=first_payload, headers=headers, timeout=15)
             else:
                 resp = requests.post(local_zapi_url, json=first_payload, headers=headers, timeout=15)
         else:
@@ -126,14 +131,25 @@ def send_text(phone: str, message: str) -> dict:
 
             if resp_json and isinstance(resp_json, dict) and resp_json.get('error'):
                 # treat as failure and continue to next variant
-                err_msg = f"payload[{idx}] provider_error={resp_json.get('error')} message={resp_json.get('message')}"
-                errors.append(err_msg)
+                # record clear diagnostics without referencing loop-only variables
+                try:
+                    status_code = getattr(resp, 'status_code', 'N/A')
+                    body_text = json.dumps(resp_json, ensure_ascii=False)
+                except Exception:
+                    status_code = getattr(resp, 'status_code', 'N/A')
+                    body_text = getattr(resp, 'text', '')
+
+                # include the attempted URL when available for easier troubleshooting
+                attempted_url = None
+                try:
+                    attempted_url = resp.request.url if hasattr(resp, 'request') and getattr(resp.request, 'url', None) else None
+                except Exception:
+                    attempted_url = None
+
+                errors.append(f"payload[fast] status={status_code} url={attempted_url} body={body_text}")
                 if debug:
-                    log.debug('DEBUG_ZAPI: RESPONSE_STATUS=%s', str(getattr(resp, 'status_code', 'N/A')))
-                    try:
-                        log.debug('DEBUG_ZAPI: RESPONSE_JSON=%s', json.dumps(resp_json, ensure_ascii=False))
-                    except Exception:
-                        log.debug('DEBUG_ZAPI: RESPONSE_TEXT=%s', getattr(resp, 'text', ''))
+                    log.debug('DEBUG_ZAPI: RESPONSE_STATUS=%s', str(status_code))
+                    log.debug('DEBUG_ZAPI: RESPONSE_TEXT=%s', body_text)
                 # continue to next payload variant instead of returning
             else:
                 try:
