@@ -113,5 +113,29 @@
     },
     "history": [],
     "completed_at": 1756707884
+  },
+  {
+    "phone": "5511999999999",
+    "name_hint": null,
+    "created_at": 1756723896,
+    "status": "pending",
+    "initiated_by": "outbound",
+    "questions": [
+      "name",
+      "dob",
+      "cpf",
+      "address",
+      "confirm"
+    ],
+    "answers": {
+      "name": "Bom"
+    },
+    "history": [
+      {
+        "ts": 1725139200,
+        "text": "Bom dia"
+      }
+    ],
+    "last_sent_question": "Qual seu nome completo?"
   }
 ]
