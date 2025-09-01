@@ -10,8 +10,24 @@ from utils.validators import is_valid_phone
 def create_app():
     app = Flask("SecretariaJuliana")
     app.config.update(load_config())
-    app.register_blueprint(webhook_bp)
-    init_scheduler(app)
+    # Register webhook blueprint and initialize scheduler defensively so
+    # import-time failures in optional modules don't prevent the app from
+    # starting. Errors are logged to stderr so they appear in Railway logs.
+    try:
+        from webhook.handler import bp as webhook_bp
+        app.register_blueprint(webhook_bp)
+    except Exception as e:
+        import sys, traceback
+        print("[warn] failed to register webhook blueprint:", file=sys.stderr)
+        traceback.print_exc()
+
+    try:
+        from scheduler.agenda import init_scheduler
+        init_scheduler(app)
+    except Exception:
+        import sys, traceback
+        print("[warn] failed to initialize scheduler:", file=sys.stderr)
+        traceback.print_exc()
 
     @app.route("/health", methods=["GET"])
     def health():
@@ -62,3 +78,14 @@ def create_app():
 if __name__ == "__main__":
     app = create_app()
     app.run(host="0.0.0.0", port=PORT, debug=True)
+
+# Expose the application for WSGI servers (gunicorn expects a module-level `app`)
+import sys, traceback
+try:
+    app = create_app()
+except Exception:
+    print("[error] create_app() failed during import; printing traceback:", file=sys.stderr)
+    traceback.print_exc()
+    # Re-raise so Gunicorn sees the failure (will terminate), but above
+    # traceback will be available in the container logs for diagnosis.
+    raise
