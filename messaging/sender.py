@@ -131,7 +131,7 @@ def send_text(phone: str, message: str) -> dict:
 
             if resp_json and isinstance(resp_json, dict) and resp_json.get('error'):
                 # treat as failure and continue to next variant
-                # record clear diagnostics without referencing loop-only variables
+                # record clear diagnostics (status, attempted url, and body text)
                 try:
                     status_code = getattr(resp, 'status_code', 'N/A')
                     body_text = json.dumps(resp_json, ensure_ascii=False)
@@ -139,7 +139,6 @@ def send_text(phone: str, message: str) -> dict:
                     status_code = getattr(resp, 'status_code', 'N/A')
                     body_text = getattr(resp, 'text', '')
 
-                # include the attempted URL when available for easier troubleshooting
                 attempted_url = None
                 try:
                     attempted_url = resp.request.url if hasattr(resp, 'request') and getattr(resp.request, 'url', None) else None
