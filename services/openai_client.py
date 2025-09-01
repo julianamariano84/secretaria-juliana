@@ -7,6 +7,7 @@ import os
 import json
 from typing import Optional, Dict, Any, List
 import logging
+logger = logging.getLogger(__name__)
 
 try:
     # openai>=1.0.0 exposes a client class
@@ -38,10 +39,11 @@ def extract_registration_fields(text: str) -> Optional[Dict[str, Any]]:
     or None if extraction fails.
     """
     try:
+        logger.info("openai_client: attempting to initialize client for extraction")
         client = _require_client()
     except Exception as e:
-        logger = logging.getLogger(__name__)
         logger.debug("[openai_client] client init error: %s", e)
+        logger.info("openai_client: falling back to local extractor because client init failed")
         # fallback to local heuristic extractor when client can't be created
         return local_extract_registration_fields(text)
     prompt = (
@@ -51,6 +53,7 @@ def extract_registration_fields(text: str) -> Optional[Dict[str, Any]]:
     )
 
     try:
+        logger.info("openai_client: calling OpenAI API for extraction; model=%s", os.getenv('OPENAI_MODEL', 'gpt-3.5-turbo'))
         resp = client.chat.completions.create(
             model=os.getenv('OPENAI_MODEL', 'gpt-3.5-turbo'),
             messages=[{"role": "user", "content": prompt}],
@@ -65,10 +68,10 @@ def extract_registration_fields(text: str) -> Optional[Dict[str, Any]]:
             content = content[first_brace:]
         return json.loads(content)
     except Exception as e:
-        print(f"[openai_client] extraction error: {e}")
+        logger.exception("[openai_client] extraction error: %s", e)
         try:
             # show raw response when available for debugging
-            print('[openai_client] raw response:', getattr(e, 'http_body', None) or getattr(e, 'args', None))
+            logger.debug('[openai_client] raw response: %s', getattr(e, 'http_body', None) or getattr(e, 'args', None))
         except Exception:
             pass
         # fallback to local heuristic extractor when API call fails
@@ -226,16 +229,18 @@ def generate_registration_questions(context: Optional[str] = None) -> Optional[L
     Returns list of question strings or None on failure.
     """
     try:
+        logger.info("openai_client: attempting to initialize client for registration-question generation")
         client = _require_client()
     except Exception as e:
-        logger = logging.getLogger(__name__)
         logger.debug("[openai_client] client init error: %s", e)
+        logger.info("openai_client: falling back from question generation because client init failed")
         return {"error": str(e)}
     prompt = "Gere 5 perguntas curtas para coletar nome completo, data de nascimento, CPF, endereço e consentimento para cadastro."
     if context:
         prompt = context + "\n\n" + prompt
 
     try:
+        logger.info("openai_client: calling OpenAI API to generate registration questions; model=%s", os.getenv('OPENAI_MODEL', 'gpt-3.5-turbo'))
         resp = client.chat.completions.create(
             model=os.getenv('OPENAI_MODEL', 'gpt-3.5-turbo'),
             messages=[{"role": "user", "content": prompt}],
@@ -247,9 +252,9 @@ def generate_registration_questions(context: Optional[str] = None) -> Optional[L
         lines = [l.strip() for l in content.splitlines() if l.strip()]
         return lines[:6]
     except Exception as e:
-        print(f"[openai_client] generation error: {e}")
+        logger.exception("[openai_client] generation error: %s", e)
         try:
-            print('[openai_client] raw response:', getattr(e, 'http_body', None) or getattr(e, 'args', None))
+            logger.debug('[openai_client] raw response: %s', getattr(e, 'http_body', None) or getattr(e, 'args', None))
         except Exception:
             pass
         return {"error": str(e)}
@@ -281,11 +286,12 @@ def generate_greeting_and_action(text: str, first_contact: bool = False) -> Dict
         return {"greeting": greet, "action": "ask", "question": "Posso começar pedindo seu nome completo?"}
 
     try:
+        logger.info("openai_client: attempting to initialize client for greeting/action")
         client = _require_client()
     except Exception as e:
         # fallback to heuristic
-        logger = logging.getLogger(__name__)
         logger.debug("[openai_client] client init error: %s", e)
+        logger.info("openai_client: falling back to heuristic greeting/action generation")
         try:
             parsed = local_extract_registration_fields(text)
         except Exception:
@@ -312,6 +318,7 @@ def generate_greeting_and_action(text: str, first_contact: bool = False) -> Dict
     )
 
     try:
+        logger.info("openai_client: calling OpenAI API to generate greeting/action; model=%s", os.getenv('OPENAI_MODEL', 'gpt-3.5-turbo'))
         resp = client.chat.completions.create(
             model=os.getenv('OPENAI_MODEL', 'gpt-3.5-turbo'),
             messages=[{"role": "user", "content": prompt}],
@@ -330,9 +337,9 @@ def generate_greeting_and_action(text: str, first_contact: bool = False) -> Dict
             'question': parsed.get('question') if parsed.get('question') else None,
         }
     except Exception as e:
-        print(f"[openai_client] greeting/action error: {e}")
+        logger.exception("[openai_client] greeting/action error: %s", e)
         try:
-            print('[openai_client] raw response:', getattr(e, 'http_body', None) or getattr(e, 'args', None))
+            logger.debug('[openai_client] raw response: %s', getattr(e, 'http_body', None) or getattr(e, 'args', None))
         except Exception:
             pass
         return fallback
