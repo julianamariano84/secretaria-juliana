@@ -1,0 +1,30 @@
+Using profile: C:\Users\mario\AppData\Local\Google\Chrome\User Data\Default
+starting playwright
+navigating to https://app.terapee.com.br/painel
+--- username probes ---
+None
+{'selector': "input[type='email']", 'attr_value': None, 'prop_value': '', 'outerHTML': '<input class="bubble-element Input baTaIaHy a1756700667510x956" type="email" placeholder="Seu e-mail" style="background-color: rgb(255, 255, 255);">'}
+None
+None
+None
+None
+None
+None
+{'selector': 'input', 'attr_value': None, 'prop_value': '', 'outerHTML': '<input class="bubble-element Input baTaIaHy a1756700667510x956" type="email" placeholder="Seu e-mail" style="background-color: rgb(255, 255, 255);">'}
+--- password probes ---
+{'selector': "input[type='password']", 'attr_value': None, 'prop_value': '', 'outerHTML': '<input id="pwdInput" class="bubble-element Input baTaIaIaD a1756700667510x956" type="password" placeholder="Sua senha" autocomplete="new-password" style="background-color: rgb(255, 255, 255);">'}
+None
+None
+None
+--- all inputs ---
+input[0] type='email' name='' placeholder='Seu e-mail' value=''
+input[1] type='password' name='' placeholder='Sua senha' value=''
+localStorage keys:
+{
+  "algoliasearch-client-js": "{}"
+}
+sessionStorage keys:
+{
+  "db_latest_version_1756700592386x221268828927833280": "0"
+}
+closing context

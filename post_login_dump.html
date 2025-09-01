@@ -1,0 +1,319 @@
+<!DOCTYPE html><html lang="pt" class="wf-inter-n3-active wf-inter-n4-active wf-inter-n5-active wf-inter-n6-active wf-inter-n7-active wf-opensans-n5-active wf-opensans-n6-active wf-opensans-n7-active wf-poppins-n4-active wf-poppins-n5-active wf-poppins-n6-active wf-poppins-n7-active wf-active b-root" style="height: 100%;"><head>
+<meta charset="utf-8">
+
+<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+
+<title>Terapee - Painel</title>
+<script type="text/javascript">
+    window.bubble_session_uid = '1756675895466x560336367130392700';
+</script>
+<script type="text/javascript">
+    window.headers_source_maps = [["plugin_main_headers_1497473108162x748255442121523200",222,223],["plugin_main_headers_1580238841425x582072028873097200",224,255],["plugin_main_headers_1658328157117x953686184769617900",256,258],["plugin_page_headers_AAD",259,261],["plugin_page_headers_AAa",262,264],["plugin_page_headers_ANK",265,267],["plugin_page_headers_ALY",268,270],["custom_app_header",272,276]]
+</script>
+<script type="text/javascript">
+function make_proxy(target, name) {
+  return new Proxy(target, {
+    get: function(target, prop) {
+      if (prop in target) {
+        return target[prop];
+      }
+      throw new Error('The variable ' + name + ' is not fully initialized yet');
+    }
+  });
+}
+window.appquery = make_proxy({
+  app_version: function() { return "live"; },
+  last_change: function() { return "33509225561";},
+}, 'appquery');
+window.Lib = new Proxy(function() {}, {
+  get: function(target, prop) {
+    if (prop === 'is_skeleton') {
+      return true;
+    }
+    throw new Error('The variable ' + Lib + ' is not fully initialized yet');
+  },
+  apply: function() {
+    return make_proxy({
+      current_user: function() {
+        return make_proxy({ id: "1756675895466x560336367130392700" }, 'Lib().current_user');
+      }
+    }, 'Lib()');
+  }
+});
+</script>
+<script type="text/javascript">
+function load_error_function (event) {
+  return window.load_error_log.push({ msg: event.message, error_url: event.filename, line: event.lineno, col: event.colno })
+}
+window.load_error_log = [];
+window.addEventListener('error', load_error_function);
+window.disableLoadErrorFunction = function () {
+  window.removeEventListener('error', load_error_function);
+}
+</script>
+<meta name="referrer" content="origin">
+<script type="text/javascript">
+if (!window._bubble_page_load_data) {
+  window._bubble_page_load_data = {}
+}
+if (!window._bubble_page_load_data.js_execution_timings) {
+  window._bubble_page_load_data.js_execution_timings = {}
+}
+window._bubble_page_load_data.js_execution_timings['pre_early_js'] = Date.now();
+</script><script type="text/javascript" crossorigin="anonymous" charset="UTF-8" src="/package/early_js/05ae9fe83d6b755291132aab9d325d70918aafd336da1bd91a41a31c8b25734b/early.js"></script><script type="text/javascript">
+if (!window._bubble_page_load_data) {
+  window._bubble_page_load_data = {}
+}
+if (!window._bubble_page_load_data.js_execution_timings) {
+  window._bubble_page_load_data.js_execution_timings = {}
+}
+window._bubble_page_load_data.js_execution_timings['post_early_js'] = Date.now();
+</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300%7CInter:regular%7CInter:regular%7CInter:500%7CInter:500%7CInter:600%7CInter:600%7CInter:700%7CInter:700%7COpen+Sans:500%7COpen+Sans:600%7COpen+Sans:700%7CPoppins:regular%7CPoppins:500%7CPoppins:600%7CPoppins:700"><script type="text/javascript">(function () {
+    function onWebFontFinish () {
+        window.google_web_fonts_active = true;
+if (window.google_web_fonts_active_cb) {
+    window.google_web_fonts_active_cb();
+}
+        (function fontface_loaded_snippet (font) {
+  if (window.fontface_loaded == null) {
+    window.fontface_loaded = {}
+  }
+  if (font != null) {
+    window.fontface_loaded[font] = true
+  } else {
+    window.all_fontface_loaded = true
+  }
+  if (window.fontface_webfonts_loaded_cb) {
+    return window.fontface_webfonts_loaded_cb(font)
+  }
+})()
+    }
+    const WebFontConfig = {'google': { families: ["Inter:300","Inter:regular","Inter:regular","Inter:500","Inter:500","Inter:600","Inter:600","Inter:700","Inter:700","Open Sans:500","Open Sans:600","Open Sans:700","Poppins:regular","Poppins:500","Poppins:600","Poppins:700"] },
+        active: function() {
+            onWebFontFinish()
+        },
+        inactive: function() {
+            console.log('Failed to load all the fonts');
+            onWebFontFinish()
+        },
+        fontinactive: function(family_name, fvd) {
+            console.log('fontinactive being called for ' + family_name + ', Google says the fonts didnt render');
+            onWebFontFinish()
+        }
+    }
+        window.WebFont.load(WebFontConfig);
+})();</script>
+<script>
+(function initialize_data() {
+const xhr = new XMLHttpRequest();
+xhr.onreadystatechange = function() {
+    if (this.readyState === 4 && this.status === 200) {
+        const data = JSON.parse(this.responseText);
+
+        function init_data() {
+            data.forEach(function(d) {
+                Lib().db_instance().initialize_data(d.id, d.data, d.type, d.version);
+            })
+        }
+
+        if (window.Lib && window.Lib.is_skeleton == null) {
+            init_data();
+        } else {
+            window.Lib_post_load = init_data;
+        }
+    }
+};
+xhr.open("GET", "https://app.terapee.com.br/api/1.1/init/data?location=" + encodeURIComponent(window.location.href), true);
+xhr.send();
+})();
+</script>
+<script type="text/javascript">window.gm_key = "AIzaSyAbv5w8iKjaGdX6BNCwLTLAoU5L2fnCcds";</script>
+<script type="text/javascript">window.glrl_key_status = false;</script>
+<script type="text/javascript">window.bubble_page_load_id = "1756701423713x529";</script>
+<script type="text/javascript">window.bubble_plp_token = "YK9XbdPNPSSt8NkONnWY92zOEVtTmxY+kMPTabFy5b8=";</script>
+<script type="text/javascript">window.bubble_is_leanjs = false;</script>
+<script type="text/javascript">window.bubble_shim_modules = false;</script>
+<script type="text/javascript">window.bubble_new_reactivity = false;</script>
+<link rel="icon" type="image/png" href="https://e368ab1a5d854431712e6f6dd1e7ba0d.cdn.bubble.io/cdn-cgi/image/w=128,h=,f=auto,dpr=1,fit=contain/f1695659797055x179192750411951500/facivon.png">
+<meta name="fragment" content="!">
+<meta name="description" content="Terapee - Sistema de Gestão para clínicas de terapias">
+<link rel="canonical" href="https://app.terapee.com.br/painel/1756675895466x560336367130392700">
+<meta property="og:title" content="Terapee - Sistema de Gestão para clínicas de terapias">
+<meta name="twitter:title" content="Terapee - Sistema de Gestão para clínicas de terapias">
+<meta property="og:site_name" content="Terapee">
+<meta name="twitter:site_name" content="Terapee">
+<meta property="og:description" content="Terapee - Sistema de Gestão para clínicas de terapias">
+<meta name="twitter:description" content="Terapee - Sistema de Gestão para clínicas de terapias">
+<link rel="image_src" href="https://e368ab1a5d854431712e6f6dd1e7ba0d.cdn.bubble.io/cdn-cgi/image/w=,h=,f=auto,dpr=1,fit=contain/f1737923516085x415479361826302200/logo_terapee_social.png">
+<meta property="og:image" content="https://e368ab1a5d854431712e6f6dd1e7ba0d.cdn.bubble.io/cdn-cgi/image/w=,h=,f=auto,dpr=1,fit=contain/f1737923516085x415479361826302200/logo_terapee_social.png">
+<meta name="twitter:image:src" content="https://e368ab1a5d854431712e6f6dd1e7ba0d.cdn.bubble.io/cdn-cgi/image/w=,h=,f=auto,dpr=1,fit=contain/f1737923516085x415479361826302200/logo_terapee_social.png">
+<meta property="og:url" content="https://app.terapee.com.br/painel/1756675895466x560336367130392700?resume=1756701422915x976541907415278300">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-startup-image" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2)" href="//e368ab1a5d854431712e6f6dd1e7ba0d.cdn.bubble.io/f1694551292043x324524508245078700/terapee_logo_redes_sociais.png">
+<link rel="apple-touch-startup-image" media="(device-width: 768px) and (device-height: 1024px) and (orientation: portrait) and (-webkit-device-pixel-ratio: 2)" href="//e368ab1a5d854431712e6f6dd1e7ba0d.cdn.bubble.io/f1694551295873x318079323947890300/terapee_logo_redes_sociais.png">
+<link rel="apple-touch-startup-image" media="(device-width: 768px) and (device-height: 1024px) and (orientation: landscape) and (-webkit-device-pixel-ratio: 2)" href="//e368ab1a5d854431712e6f6dd1e7ba0d.cdn.bubble.io/f1694551299306x100786062443364080/terapee_logo_redes_sociais.png">
+<link rel="apple-touch-icon" href="https://e368ab1a5d854431712e6f6dd1e7ba0d.cdn.bubble.io/cdn-cgi/image/w=192,h=,f=auto,dpr=1,fit=contain/f1692664490151x745371190862542700/terapee_logo_redes_sociais.png">
+<meta name="viewport" content="width=device-width,initial-scale=1.0, user-scalable=no, minimal-ui">
+<script type="text/javascript">window._p = '{"id":"app_starter_2023","no_branding":true,"import_export_csv":true,"custom_domain":true}';</script>
+<script type="text/javascript">window.bubble_page_name = "painel";</script>
+<script type="text/javascript">window.__bubble_module_mode = false;</script>
+<link type="text/css" href="/package/run_css/69cda2a0b3e3745358c318a5a41cfd0f84faea5c36dc633b9217db6eb76fba67/terapee/live/painel/xfalse/xfalse/run.css" rel="stylesheet">
+<script type="text/javascript">
+if (!window._bubble_page_load_data) {
+  window._bubble_page_load_data = {}
+}
+if (!window._bubble_page_load_data.js_execution_timings) {
+  window._bubble_page_load_data.js_execution_timings = {}
+}
+window._bubble_page_load_data.js_execution_timings['pre_run_js'] = Date.now();
+</script>
+<script type="text/javascript" crossorigin="anonymous" charset="UTF-8" src="/package/pre_run_jquery_js/dee903a9e36db713e4c86d0cdd96d921e37be0c1293ed8dee29e2e4d7713b9ff/pre_run_jquery.js"></script>
+<script type="text/javascript" crossorigin="anonymous" charset="UTF-8" src="/package/run_js/1e3a3b889bae1455f9d319c01f1e7e85cdaa2b8425df81714daa43b5f21ab9d9/xfalse/x30/run.js"></script>
+<script type="text/javascript">
+if (!window._bubble_page_load_data) {
+  window._bubble_page_load_data = {}
+}
+if (!window._bubble_page_load_data.js_execution_timings) {
+  window._bubble_page_load_data.js_execution_timings = {}
+}
+window._bubble_page_load_data.js_execution_timings['post_run_js'] = Date.now();
+</script>
+<script type="text/javascript">
+if (!window._bubble_page_load_data) {
+  window._bubble_page_load_data = {}
+}
+if (!window._bubble_page_load_data.js_execution_timings) {
+  window._bubble_page_load_data.js_execution_timings = {}
+}
+window._bubble_page_load_data.js_execution_timings['pre_static_js'] = Date.now();
+</script><script type="text/javascript" crossorigin="anonymous" charset="UTF-8" src="/package/static_js/85c60e580ef7e0edf0261a71646c2b08da06849da2310cd15e2c9d2feca7a778/terapee/live/painel/xnull/xfalse/xfalse/xfalse/static.js"></script><script type="text/javascript">
+if (!window._bubble_page_load_data) {
+  window._bubble_page_load_data = {}
+}
+if (!window._bubble_page_load_data.js_execution_timings) {
+  window._bubble_page_load_data.js_execution_timings = {}
+}
+window._bubble_page_load_data.js_execution_timings['post_static_js'] = Date.now();
+</script>
+<script type="text/javascript">
+if (!window._bubble_page_load_data) {
+  window._bubble_page_load_data = {}
+}
+if (!window._bubble_page_load_data.js_execution_timings) {
+  window._bubble_page_load_data.js_execution_timings = {}
+}
+window._bubble_page_load_data.js_execution_timings['pre_dynamic_js'] = Date.now();
+</script><script type="text/javascript" crossorigin="anonymous" charset="UTF-8" src="/package/dynamic_js/2f1265ca7483a30d88d701905548c8b7b28a990dc205f6a1f6a75e72255e053f/terapee/live/painel/xnull/xfalse/xfalse/pt_br/xfalse/xfalse/dynamic.js"></script><script type="text/javascript">
+if (!window._bubble_page_load_data) {
+  window._bubble_page_load_data = {}
+}
+if (!window._bubble_page_load_data.js_execution_timings) {
+  window._bubble_page_load_data.js_execution_timings = {}
+}
+window._bubble_page_load_data.js_execution_timings['post_dynamic_js'] = Date.now();
+</script>
+<script type="text/javascript">window._bubble_page_load_data.js_execution_timings.plugin_js_start_execution = Date.now();</script>
+<!-- 1497473108162x748255442121523200 -->
+<script type="text/javascript" src="//e368ab1a5d854431712e6f6dd1e7ba0d.cdn.bubble.io/f1618227041113x740068462949819800/clipboard.min.js"></script>
+<!-- 1580238841425x582072028873097200 -->
+<style>
+    
+    blockquote {
+        border-left: 4px solid #ccc;
+   		margin-bottom: 5px;
+    	margin-top: 5px;
+        padding-left: 16px;
+    }
+    
+    ul, ol {
+    	list-style-position: outside;
+    }
+    
+    .ql-font .ql-picker-label:first-child::before {
+    	font-family: inherit;    
+        overflow: hide;
+    }
+    
+    .ql-font .ql-picker-label {
+        overflow: hidden;
+    }
+    
+    .regular-header-icon {
+        color: #444;
+    }
+    
+    .tooltip-header-icon {
+        color: #ccc;
+    }
+    
+</style>
+<!-- 1658328157117x953686184769617900 -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/izitoast/1.4.0/css/iziToast.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/izitoast/1.4.0/js/iziToast.min.js" type="text/javascript"></script>
+<!-- AAD -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.mask/1.14.16/jquery.mask.min.js"></script>
+
+<!-- AAa -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intl-tel-input@24.5.2/build/css/intlTelInput.css"><script src="https://cdn.jsdelivr.net/npm/intl-tel-input@24.5.2/build/js/intlTelInputWithUtils.min.js"></script>
+
+<!-- ANK -->
+<script src="//e368ab1a5d854431712e6f6dd1e7ba0d.cdn.bubble.io/f1729071059953x865579434804518000/iconify.min.js"></script>
+
+<!-- ALY -->
+<script src="//e368ab1a5d854431712e6f6dd1e7ba0d.cdn.bubble.io/f1729071059953x865579434804518000/iconify.min.js"></script>
+
+<script type="text/javascript">window._bubble_page_load_data.js_execution_timings.plugin_js_end_execution = Date.now();</script>
+<!-- custom app meta header -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+<link rel="manifest" href="/manifest.json">
+<style type="text/css"></style></head>
+<body style="height: 100%;"><script type="text/javascript">
+window.addEventListener('DOMContentLoaded', function () {
+  if (window.appquery == null) {
+    const css = document.createElement('style');
+css.type='text/css';
+css.appendChild(document.createTextNode(".warning-message-failure {padding: 30px; line-height: 1.5; white-space: pre; z-index: 1000000; position: fixed; width: 100%; height: 100%; background: white;}"));
+document.getElementsByTagName("head")[0].appendChild(css);
+const newDiv = document.createElement("div");
+newDiv.className = "warning-message-failure";
+newDiv.innerHTML = "Your browser was unable to load some necessary resources, contact your IT network administrator and ask them to allow access to <br><br>     d3dqmih97rcqmh.cloudfront.net <br>     e368ab1a5d854431712e6f6dd1e7ba0d.cdn.bubble.io/ <br>     d1muf25xaso8hp.cloudfront.net";
+document.body.appendChild(newDiv);
+    httpRequest = new XMLHttpRequest();
+httpRequest.open('POST', '/user/m', true);
+httpRequest.setRequestHeader('Content-Type', 'application/json');
+httpRequest.send(JSON.stringify({measures: {page_load_error: 1, url: document.location.href, errors: window.load_error_log}}));
+  };
+});
+</script><script>
+ if ('serviceWorker' in navigator) {
+window.addEventListener('load', function() {
+ navigator.serviceWorker.register('/service-worker.js', { scope: '/' }).then(function(registration) {
+ // Registration was successful
+ console.log('ServiceWorker registration successful with scope: ', registration.scope);
+ }, function(err) {
+ // registration failed :(
+ console.log('ServiceWorker registration failed: ', err);
+ });
+});
+}
+</script><script type="text/javascript">window.addEventListener('DOMContentLoaded', function () {if (window.appquery && window.app == null) {const css = document.createElement('style');
+css.type='text/css';
+css.appendChild(document.createTextNode(".warning-message-failure {padding: 30px; line-height: 1.5; white-space: pre; z-index: 1000000; position: fixed; width: 100%; height: 100%; background: white;}"));
+document.getElementsByTagName("head")[0].appendChild(css);
+const newDiv = document.createElement("div");
+newDiv.className = "warning-message-failure";
+newDiv.innerHTML = "Your browser was unable to load the application data. We've been notified of the issue. Please try again in a few moments and make sure not to use ad-blockers.";
+document.body.appendChild(newDiv);}});</script>
+<img style="display: none;" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+
+<div class="bubble-element Page baTaLxaQ bubble-r-container-wrapper main-page"><div class="bubble-r-container flex row"><div class="bubble-element Group baTaMaBs bubble-r-container flex column"><div class="bubble-element HTML baTaQxaC"><style>
+body {
+  background-color: #444CE7;
+}
+</style></div><div class="bubble-element Group baTaMaBq bubble-r-container flex column" style="max-width: unset; max-height: unset;"><div class="bubble-element Group baTaNwaH bubble-r-container flex row" data-outline="true" style="background-color: rgba(159, 164, 255, 0.12); box-shadow: rgb(170, 170, 170) 2px 2px 4px 0px; visibility: unset;"><button class="bubble-element Icon baTaNwaM" tabindex="" style="display: flex;"><svg viewBox="0 0 32 32" data-icon-set="fa" style="width: 100%; height: 100%;"><use width="32" height="32" href="/static/icon_libraries/fontawesome-4.7.0.svg#fa-clock-o"></use></svg></button><div class="bubble-element Group baTaNwaN bubble-r-container flex column"><div class="bubble-element Text baTaNwaO bubble-r-vertical-center"><div>Seu período de teste termina em 7 dias.</div></div></div><button class="clickable-element bubble-element Button baTaNwaT" data-outline="true" style="box-shadow: 0px 7px 30px -10px rgba(var(--color_primary_default_rgb), 0.1); background-color: var(--color_primary_default);">Assine já</button></div><div class="bubble-element Group baTaLyaT bubble-r-container flex row" style="gap: 10px; max-width: unset; max-height: unset;"><div class="clickable-element bubble-element Group baTaLyaU bubble-r-container flex row" data-outline="true" style="background-color: rgb(255, 255, 255); box-shadow: rgb(170, 170, 170) 0px 1px 2px 0px;"><button class="bubble-element Icon baTaLyaY" tabindex="" style="display: flex;"><svg viewBox="0 0 32 32" data-icon-set="feather" style="width: 100%; height: 100%;"><use width="32" height="32" href="/static/icon_libraries/feather-4.29.0.svg#user-plus"></use></svg></button><div class="bubble-element Text baTaLyaZ">Cadastrar paciente</div></div><div class="clickable-element bubble-element Group baTaLym bubble-r-container flex row" data-outline="true" style="background-color: rgb(255, 255, 255); box-shadow: rgb(170, 170, 170) 0px 1px 2px 0px;"><button class="bubble-element Icon baTaLyq" tabindex="" style="display: flex;"><svg viewBox="0 0 32 32" data-icon-set="feather" style="width: 100%; height: 100%;"><use width="32" height="32" href="/static/icon_libraries/feather-4.29.0.svg#calendar"></use></svg></button><div class="bubble-element Text baTaLyr">Agendamento</div></div><div class="clickable-element bubble-element Group baTaLya bubble-r-container flex row" data-outline="true" style="background-color: rgb(255, 255, 255); box-shadow: rgb(170, 170, 170) 0px 1px 2px 0px; visibility: unset;"><button class="bubble-element Icon baTaLye" tabindex="" style="display: flex;"><svg viewBox="0 0 32 32" data-icon-set="feather" style="width: 100%; height: 100%;"><use width="32" height="32" href="/static/icon_libraries/feather-4.29.0.svg#credit-card"></use></svg></button><div class="bubble-element Text baTaLyf">Emitir cobrança</div></div></div><div class="bubble-element Group baTaMaBg bubble-r-container flex row"><div class="bubble-element Text baTaMaBk">Resumo financeiro</div><button class="clickable-element bubble-element Icon baTaMaBl" tabindex="" title="Esconder valores" style="display: flex;"><svg viewBox="0 0 32 32" data-icon-set="feather" style="width: 100%; height: 100%;"><use width="32" height="32" href="/static/icon_libraries/feather-4.29.0.svg#eye-off"></use></svg></button></div><div class="bubble-element Group baTkdu bubble-r-container flex column"><div class="bubble-element Group baTkdy bubble-r-container flex row"><div class="bubble-element Group baTkdz bubble-r-container flex column" style="background-color: var(--color_primary_contrast_default);"><div class="clickable-element bubble-element Group baTkeaA bubble-r-container flex column"><div class="bubble-element Group baTkeaE bubble-r-container flex row" style="background-color: rgb(255, 255, 255);"><div class="bubble-element Text baTkeaF">Receitas</div><div class="bubble-element Text baTkeaG">Set/25</div></div><div class="bubble-element Group baTkeaK bubble-r-container flex row" style="background-color: rgb(255, 255, 255);"><div class="bubble-element Text baTkeaL">**********</div></div></div></div><div class="bubble-element Group baTkei bubble-r-container flex column" style="background-color: var(--color_primary_contrast_default);"><div class="clickable-element bubble-element Group baTkej bubble-r-container flex column"><div class="bubble-element Group baTkek bubble-r-container flex row" style="background-color: rgb(255, 255, 255);"><div class="bubble-element Text baTkeo">Despesas</div><div class="bubble-element Text baTkjaQ">Set/25</div></div><div class="bubble-element Group baTkeq bubble-r-container flex row" style="background-color: rgb(255, 255, 255);"><div class="bubble-element Text baTkeu">**********</div></div></div></div><div class="bubble-element Group baTkeaS bubble-r-container flex column" style="background-color: var(--color_primary_contrast_default);"><div class="bubble-element Group baTkeaW bubble-r-container flex column"><div class="bubble-element Group baTkeaX bubble-r-container flex row" style="background-color: rgb(255, 255, 255);"><div class="bubble-element Text baTkeaY">A receber</div><div class="bubble-element Text baTkjaW">Set/25</div></div><div class="bubble-element Group baTked bubble-r-container flex row" style="background-color: rgb(255, 255, 255);"><div class="bubble-element Text baTkee">**********</div></div></div></div><div class="bubble-element Group baTkfaB bubble-r-container flex column" style="background-color: var(--color_primary_contrast_default);"><div class="bubble-element Group baTkfaC bubble-r-container flex column"><div class="bubble-element Group baTkfaG bubble-r-container flex row" style="background-color: rgb(255, 255, 255);"><div class="bubble-element Text baTkfaH">Em atraso</div><div class="bubble-element Text baTkjc">Set/25</div></div><div class="bubble-element Group baTkfaM bubble-r-container flex row" style="background-color: rgb(255, 255, 255);"><div class="bubble-element Text baTkfaN">**********</div></div></div></div></div><div class="bubble-element Text baTkgaK">* Valores exibidos com base na data de vencimento das cobranças</div></div><div class="bubble-element CustomElement baTgaIaI bubble-r-container flex column" style="background-color: rgb(255, 255, 255);"><div class="bubble-element Group baTgaAs bubble-r-container-wrapper" style="max-width: unset; max-height: unset; height: max-content;"><div class="bubble-r-container flex column"><div class="bubble-element Group baTgaAh bubble-r-container flex row"><div class="bubble-element Text baTgaAi">Agenda da semana</div><div class="bubble-element Group baTgaAm bubble-r-container flex row"><button class="clickable-element bubble-element Icon baTgaAn" tabindex="" style="display: flex;"><svg viewBox="0 0 32 32" data-icon-set="fa" style="width: 100%; height: 100%;"><use width="32" height="32" href="/static/icon_libraries/fontawesome-4.7.0.svg#fa-arrow-left"></use></svg></button><button class="clickable-element bubble-element Icon baTgaAo" tabindex="" style="display: flex;"><svg viewBox="0 0 32 32" data-icon-set="fa" style="width: 100%; height: 100%;"><use width="32" height="32" href="/static/icon_libraries/fontawesome-4.7.0.svg#fa-arrow-right"></use></svg></button></div></div><div class="bubble-element Group baTgaAaI bubble-r-container flex row"><div class="bubble-element Text baTgaAaJ">Legenda:</div><div class="bubble-element Group baTgaAaK bubble-r-container flex row"><button class="bubble-element Icon baTgaAaO" tabindex="" title="Atendimento não confirmado" style="display: flex;"><svg viewBox="0 0 32 32" data-icon-set="fa" style="width: 100%; height: 100%;"><use width="32" height="32" href="/static/icon_libraries/fontawesome-4.7.0.svg#fa-warning"></use></svg></button><div class="bubble-element Text baTgaAaP">Confirmação pendente</div></div><div class="bubble-element Group baTgaAaQ bubble-r-container flex row"><button class="bubble-element Icon baTgaAaV" tabindex="" title="Confirmado" style="display: flex;"><svg viewBox="0 0 32 32" data-icon-set="fa" style="width: 100%; height: 100%;"><use width="32" height="32" href="/static/icon_libraries/fontawesome-4.7.0.svg#fa-check-circle"></use></svg></button><div class="bubble-element Text baTgaAaU">Confirmada</div></div></div><div class="bubble-element 1618831050749x230024566736683000-AAC" style="align-self: flex-start; min-width: 1px; max-width: 1px; order: 10; min-height: 1px; max-height: 1px; height: 1px; flex-grow: 1; width: 1px; margin: 0px; z-index: 39;"></div><div class="bubble-element RepeatingGroup baTfzaC bubble-rg" style="overflow: auto;"><div class="bubble-element group-item bubble-r-container flex column entry-1" style="min-width: unset; min-height: unset; justify-content: flex-start;"><div class="bubble-element Group baTfzaG bubble-r-container-wrapper" style="max-width: unset; max-height: unset; height: max-content;"><div class="bubble-r-container flex column"><div class="bubble-element Text baTfzaH bubble-r-vertical-center" style="color: var(--color_primary_default);"><div>SEG</div></div><div class="bubble-element Text baTfzaI bubble-r-vertical-center" style="color: var(--color_primary_default);"><div>01/09</div></div><div class="bubble-element Shape baTiaEa" style="background-color: rgb(222, 222, 222);"></div><div class="bubble-element Group baTfzy bubble-r-container flex column" style="visibility: unset;"><button class="bubble-element Icon baTgaAaC" tabindex="" style="display: flex;"><svg viewBox="0 0 32 32" data-icon-set="feather" style="width: 100%; height: 100%;"><use width="32" height="32" href="/static/icon_libraries/feather-4.29.0.svg#calendar"></use></svg></button><div class="bubble-element Text baTgaAaD">Nenhum agendamento</div></div><div class="bubble-element RepeatingGroup baTiaCw bubble-rg" style="overflow: auto;"><div class="bubble-element group-item bubble-r-container flex row entry-1" style="min-width: unset; justify-content: flex-start; display: none;"><div class="clickable-element bubble-element Group baTiaDaB bubble-r-container-wrapper" style="max-width: unset; max-height: unset; background-color: rgb(237, 244, 255); height: max-content;"><div class="bubble-r-container flex row"><div class="bubble-element Group baTiaDaC bubble-r-container flex column"><div class="bubble-element Group baTiaDaG bubble-r-container flex row"><div class="bubble-element Text baTiaDaH" style="color: rgb(170, 170, 170);"></div><div class="bubble-element Group baTiaDaI bubble-r-container flex row"><div class="bubble-element Text baTiaDaY" style="background-color: rgba(var(--color_destructive_default_rgb), 0.12); visibility: unset;">Check-in</div></div></div><div class="bubble-element Group baTiaDg bubble-r-container flex row"><div class="bubble-element Text baTiaDk"> </div></div></div></div></div></div></div></div></div></div><div class="bubble-element group-item bubble-r-container flex column entry-2" style="min-width: unset; min-height: unset; border-left: 0px none rgb(150, 150, 150); margin-left: 0px; justify-content: flex-start;"><div class="bubble-element Group baTfzaG bubble-r-container-wrapper" style="max-width: unset; max-height: unset; height: max-content;"><div class="bubble-r-container flex column"><div class="bubble-element Text baTfzaH bubble-r-vertical-center"><div>TER</div></div><div class="bubble-element Text baTfzaI bubble-r-vertical-center"><div>02/09</div></div><div class="bubble-element Shape baTiaEa" style="background-color: rgb(222, 222, 222);"></div><div class="bubble-element RepeatingGroup baTiaCw bubble-rg" style="overflow: auto;"><div class="bubble-element group-item bubble-r-container flex row entry-1" style="min-width: unset; justify-content: flex-start;"><div class="clickable-element bubble-element Group baTiaDaB bubble-r-container-wrapper" style="max-width: unset; max-height: unset; background-color: rgb(237, 244, 255); height: max-content;"><div class="bubble-r-container flex row"><div class="bubble-element Group baTiaDaC bubble-r-container flex column"><div class="bubble-element Group baTiaDaG bubble-r-container flex row"><div class="bubble-element Text baTiaDaH" style="">14:20</div><div class="bubble-element Group baTiaDaI bubble-r-container flex row"><div class="bubble-element Text baTiaDaY" style="background-color: rgba(var(--color_destructive_default_rgb), 0.12); display: none;">Check-in</div><button class="bubble-element Icon baTiaDaM" tabindex="" title="Confirmado" style="visibility: unset;"><svg viewBox="0 0 32 32" data-icon-set="fa" style="width: 100%; height: 100%;"><use width="32" height="32" href="/static/icon_libraries/fontawesome-4.7.0.svg#fa-check-circle"></use></svg></button><button class="clickable-element bubble-element Icon baTiaDaO" tabindex="" title="Acessar reunião online" style="visibility: unset;"><svg viewBox="0 0 32 32" data-icon-set="fa" style="width: 100%; height: 100%;"><use width="32" height="32" href="/static/icon_libraries/fontawesome-4.7.0.svg#fa-video-camera"></use></svg></button></div></div><div class="bubble-element Group baTiaDg bubble-r-container flex row"><div class="bubble-element Text baTiaDk">Miguel Cunha</div></div></div></div></div></div></div></div></div></div><div class="bubble-element group-item bubble-r-container flex column entry-3" style="min-width: unset; min-height: unset; border-left: 0px none rgb(150, 150, 150); margin-left: 0px; justify-content: flex-start;"><div class="bubble-element Group baTfzaG bubble-r-container-wrapper" style="max-width: unset; max-height: unset; height: max-content;"><div class="bubble-r-container flex column"><div class="bubble-element Text baTfzaH bubble-r-vertical-center"><div>QUA</div></div><div class="bubble-element Text baTfzaI bubble-r-vertical-center"><div>03/09</div></div><div class="bubble-element Shape baTiaEa" style="background-color: rgb(222, 222, 222);"></div><div class="bubble-element Group baTfzy bubble-r-container flex column" style="visibility: unset;"><button class="bubble-element Icon baTgaAaC" tabindex="" style="display: flex;"><svg viewBox="0 0 32 32" data-icon-set="feather" style="width: 100%; height: 100%;"><use width="32" height="32" href="/static/icon_libraries/feather-4.29.0.svg#calendar"></use></svg></button><div class="bubble-element Text baTgaAaD">Nenhum agendamento</div></div><div class="bubble-element RepeatingGroup baTiaCw bubble-rg" style="overflow: auto;"><div class="bubble-element group-item bubble-r-container flex row entry-1" style="min-width: unset; justify-content: flex-start; display: none;"><div class="clickable-element bubble-element Group baTiaDaB bubble-r-container-wrapper" style="max-width: unset; max-height: unset; background-color: rgb(237, 244, 255); height: max-content;"><div class="bubble-r-container flex row"><div class="bubble-element Group baTiaDaC bubble-r-container flex column"><div class="bubble-element Group baTiaDaG bubble-r-container flex row"><div class="bubble-element Text baTiaDaH" style="color: rgb(170, 170, 170);"></div><div class="bubble-element Group baTiaDaI bubble-r-container flex row"><div class="bubble-element Text baTiaDaY" style="background-color: rgba(var(--color_destructive_default_rgb), 0.12); visibility: unset;">Check-in</div></div></div><div class="bubble-element Group baTiaDg bubble-r-container flex row"><div class="bubble-element Text baTiaDk"> </div></div></div></div></div></div></div></div></div></div><div class="bubble-element group-item bubble-r-container flex column entry-4" style="min-width: unset; min-height: unset; border-left: 0px none rgb(150, 150, 150); margin-left: 0px; justify-content: flex-start;"><div class="bubble-element Group baTfzaG bubble-r-container-wrapper" style="max-width: unset; max-height: unset; height: max-content;"><div class="bubble-r-container flex column"><div class="bubble-element Text baTfzaH bubble-r-vertical-center"><div>QUI</div></div><div class="bubble-element Text baTfzaI bubble-r-vertical-center"><div>04/09</div></div><div class="bubble-element Shape baTiaEa" style="background-color: rgb(222, 222, 222);"></div><div class="bubble-element Group baTfzy bubble-r-container flex column" style="visibility: unset;"><button class="bubble-element Icon baTgaAaC" tabindex="" style="display: flex;"><svg viewBox="0 0 32 32" data-icon-set="feather" style="width: 100%; height: 100%;"><use width="32" height="32" href="/static/icon_libraries/feather-4.29.0.svg#calendar"></use></svg></button><div class="bubble-element Text baTgaAaD">Nenhum agendamento</div></div><div class="bubble-element RepeatingGroup baTiaCw bubble-rg" style="overflow: auto;"><div class="bubble-element group-item bubble-r-container flex row entry-1" style="min-width: unset; justify-content: flex-start; display: none;"><div class="clickable-element bubble-element Group baTiaDaB bubble-r-container-wrapper" style="max-width: unset; max-height: unset; background-color: rgb(237, 244, 255); height: max-content;"><div class="bubble-r-container flex row"><div class="bubble-element Group baTiaDaC bubble-r-container flex column"><div class="bubble-element Group baTiaDaG bubble-r-container flex row"><div class="bubble-element Text baTiaDaH" style="color: rgb(170, 170, 170);"></div><div class="bubble-element Group baTiaDaI bubble-r-container flex row"><div class="bubble-element Text baTiaDaY" style="background-color: rgba(var(--color_destructive_default_rgb), 0.12); visibility: unset;">Check-in</div></div></div><div class="bubble-element Group baTiaDg bubble-r-container flex row"><div class="bubble-element Text baTiaDk"> </div></div></div></div></div></div></div></div></div></div><div class="bubble-element group-item bubble-r-container flex column entry-5" style="min-width: unset; min-height: unset; border-left: 0px none rgb(150, 150, 150); margin-left: 0px; justify-content: flex-start;"><div class="bubble-element Group baTfzaG bubble-r-container-wrapper" style="max-width: unset; max-height: unset; height: max-content;"><div class="bubble-r-container flex column"><div class="bubble-element Text baTfzaH bubble-r-vertical-center"><div>SEX</div></div><div class="bubble-element Text baTfzaI bubble-r-vertical-center"><div>05/09</div></div><div class="bubble-element Shape baTiaEa" style="background-color: rgb(222, 222, 222);"></div><div class="bubble-element Group baTfzy bubble-r-container flex column" style="visibility: unset;"><button class="bubble-element Icon baTgaAaC" tabindex="" style="display: flex;"><svg viewBox="0 0 32 32" data-icon-set="feather" style="width: 100%; height: 100%;"><use width="32" height="32" href="/static/icon_libraries/feather-4.29.0.svg#calendar"></use></svg></button><div class="bubble-element Text baTgaAaD">Nenhum agendamento</div></div><div class="bubble-element RepeatingGroup baTiaCw bubble-rg" style="overflow: auto;"><div class="bubble-element group-item bubble-r-container flex row entry-1" style="min-width: unset; justify-content: flex-start; display: none;"><div class="clickable-element bubble-element Group baTiaDaB bubble-r-container-wrapper" style="max-width: unset; max-height: unset; background-color: rgb(237, 244, 255); height: max-content;"><div class="bubble-r-container flex row"><div class="bubble-element Group baTiaDaC bubble-r-container flex column"><div class="bubble-element Group baTiaDaG bubble-r-container flex row"><div class="bubble-element Text baTiaDaH" style="color: rgb(170, 170, 170);"></div><div class="bubble-element Group baTiaDaI bubble-r-container flex row"><div class="bubble-element Text baTiaDaY" style="background-color: rgba(var(--color_destructive_default_rgb), 0.12); visibility: unset;">Check-in</div></div></div><div class="bubble-element Group baTiaDg bubble-r-container flex row"><div class="bubble-element Text baTiaDk"> </div></div></div></div></div></div></div></div></div></div><div class="bubble-element group-item bubble-r-container flex column entry-6" style="min-width: unset; min-height: unset; border-left: 0px none rgb(150, 150, 150); margin-left: 0px; justify-content: flex-start;"><div class="bubble-element Group baTfzaG bubble-r-container-wrapper" style="max-width: unset; max-height: unset; height: max-content;"><div class="bubble-r-container flex column"><div class="bubble-element Text baTfzaH bubble-r-vertical-center"><div>SAB</div></div><div class="bubble-element Text baTfzaI bubble-r-vertical-center"><div>06/09</div></div><div class="bubble-element Shape baTiaEa" style="background-color: rgb(222, 222, 222);"></div><div class="bubble-element Group baTfzy bubble-r-container flex column" style="visibility: unset;"><button class="bubble-element Icon baTgaAaC" tabindex="" style="display: flex;"><svg viewBox="0 0 32 32" data-icon-set="feather" style="width: 100%; height: 100%;"><use width="32" height="32" href="/static/icon_libraries/feather-4.29.0.svg#calendar"></use></svg></button><div class="bubble-element Text baTgaAaD">Nenhum agendamento</div></div><div class="bubble-element RepeatingGroup baTiaCw bubble-rg" style="overflow: auto;"><div class="bubble-element group-item bubble-r-container flex row entry-1" style="min-width: unset; justify-content: flex-start; display: none;"><div class="clickable-element bubble-element Group baTiaDaB bubble-r-container-wrapper" style="max-width: unset; max-height: unset; background-color: rgb(237, 244, 255); height: max-content;"><div class="bubble-r-container flex row"><div class="bubble-element Group baTiaDaC bubble-r-container flex column"><div class="bubble-element Group baTiaDaG bubble-r-container flex row"><div class="bubble-element Text baTiaDaH" style="color: rgb(170, 170, 170);"></div><div class="bubble-element Group baTiaDaI bubble-r-container flex row"><div class="bubble-element Text baTiaDaY" style="background-color: rgba(var(--color_destructive_default_rgb), 0.12); visibility: unset;">Check-in</div></div></div><div class="bubble-element Group baTiaDg bubble-r-container flex row"><div class="bubble-element Text baTiaDk"> </div></div></div></div></div></div></div></div></div></div></div></div></div></div></div></div><div class="bubble-element Group baTaPaVaW bubble-r-container flex column" style="display: none;"><div class="bubble-element CustomElement baTaPaMaQ bubble-r-container flex row" style="background-color: var(--color_primary_default);"><div class="bubble-element Group baTaHrq bubble-r-container flex row"><div class="bubble-element jpanelmenu-SlidebarMenu fa-reorder" style="align-self: center; min-width: 28px; max-width: 28px; order: 4; width: 28px; flex-grow: 1; margin: 0px 10px 0px 0px; z-index: 2; padding: 0px; text-align: center; font-family: FontAwesome; color: var(--color_primary_contrast_default); font-size: 0px; cursor: pointer; height: 28px;"></div></div></div></div></div></div><div class="greyout baTfkaM" style="display: none;"></div><div class="bubble-element CustomElement baTfkaM bubble-r-container flex column" style="left: 0px; right: 0px; bottom: unset; background-color: var(--color_surface_default); display: none; top: 20px; position: fixed;"><div class="bubble-element Group baTfbaA bubble-r-container flex column"><div class="bubble-element Group baTfad bubble-r-container flex row" style="background-color: rgba(var(--color_primary_default_rgb), 0.1);"><div class="bubble-element ionic-IonicToggle" style="align-self: center; min-width: 51px; max-width: 51px; order: 1; min-height: 31px; max-height: 31px; width: 51px; flex-grow: 1; height: 31px; margin: 0px;"></div></div><div class="bubble-element Group baTfaZn bubble-r-container flex row" style="background-color: rgba(var(--color_success_default_rgb), 0.12);"><div class="bubble-element ionic-IonicToggle" style="align-self: center; min-width: 51px; max-width: 51px; order: 1; min-height: 31px; max-height: 31px; width: 51px; flex-grow: 1; height: 31px; margin: 0px;"></div></div></div></div><div class="bubble-element CustomElement baTjaSaC floating-group bubble-r-container flex column" style="background-color: rgb(255, 255, 255);"><div class="bubble-element Group baTgiaY bubble-r-container flex row" style="background-color: rgb(255, 255, 255);"><div class="bubble-element Group baTgid bubble-r-container flex row"><div class="bubble-element Image baTgie"><div class="aspect-ratio"></div><img src="https://e368ab1a5d854431712e6f6dd1e7ba0d.cdn.bubble.io/cdn-cgi/image/w=192,h=48,f=auto,dpr=1,fit=contain/f1676300988342x215144514602673150/logo_terapee-transp.png"></div></div></div><div class="bubble-element Shape baTgio" style="background-color: rgb(233, 234, 235);"></div><div class="bubble-element Group baTgiu bubble-r-container flex column"><div class="bubble-element Group baTgiw bubble-r-container flex column"><div class="bubble-element Group baTgjaA bubble-r-container flex column"><div class="clickable-element bubble-element Group baTgjaB bubble-r-container flex row" style="background-color: rgb(229, 234, 255);"><button class="bubble-element Icon baTgjaG" tabindex="" style="display: flex;"><svg viewBox="0 0 32 32" data-icon-set="feather" style="width: 100%; height: 100%;"><use width="32" height="32" href="/static/icon_libraries/feather-4.29.0.svg#grid"></use></svg></button><div class="bubble-element Text baTgjaC">Painel</div></div><div class="clickable-element bubble-element Group baTgjaN bubble-r-container flex row" style="background-color: rgba(255, 255, 255, 0);"><button class="bubble-element Icon baTgjaS" tabindex="" style="display: flex;"><svg viewBox="0 0 32 32" data-icon-set="feather" style="width: 100%; height: 100%;"><use width="32" height="32" href="/static/icon_libraries/feather-4.29.0.svg#calendar"></use></svg></button><div class="bubble-element Text baTgjaO">Agenda</div><button class="bubble-element Icon baThaOaU" tabindex="" style="display: flex;"><svg viewBox="0 0 32 32" data-icon-set="fa" style="width: 100%; height: 100%;"><use width="32" height="32" href="/static/icon_libraries/fontawesome-4.7.0.svg#fa-angle-down"></use></svg></button></div><div class="clickable-element bubble-element Group baTgjaH bubble-r-container flex row" style="background-color: rgba(255, 255, 255, 0);"><button class="bubble-element Icon baTgjaM" tabindex="" style="display: flex;"><svg viewBox="0 0 32 32" data-icon-set="feather" style="width: 100%; height: 100%;"><use width="32" height="32" href="/static/icon_libraries/feather-4.29.0.svg#user"></use></svg></button><div class="bubble-element Text baTgjaI">Pacientes</div></div><div class="clickable-element bubble-element Group baTgjaT bubble-r-container flex row" style="background-color: rgba(255, 255, 255, 0); visibility: hidden; display: none;"><button class="bubble-element Icon baTgjaY" tabindex="" style="display: flex;"><svg viewBox="0 0 32 32" data-icon-set="feather" style="width: 100%; height: 100%;"><use width="32" height="32" href="/static/icon_libraries/feather-4.29.0.svg#users"></use></svg></button><div class="bubble-element Text baTgjaU">Usuários</div></div><div class="clickable-element bubble-element Group baThaAaG bubble-r-container flex row" style="background-color: rgba(255, 255, 255, 0);"><button class="bubble-element Icon baThaAaM" tabindex="" style="display: flex;"><svg viewBox="0 0 32 32" data-icon-set="feather" style="width: 100%; height: 100%;"><use width="32" height="32" href="/static/icon_libraries/feather-4.29.0.svg#folder"></use></svg></button><div class="bubble-element Text baThaAaL">Prontuários</div></div><div class="clickable-element bubble-element Group baTgzo bubble-r-container flex row" style="background-color: rgba(255, 255, 255, 0);"><button class="bubble-element Icon baTgzu" tabindex="" style="display: flex;"><svg viewBox="0 0 32 32" data-icon-set="feather" style="width: 100%; height: 100%;"><use width="32" height="32" href="/static/icon_libraries/feather-4.29.0.svg#clipboard"></use></svg></button><div class="bubble-element Text baTgzt">Formulários</div></div><div class="clickable-element bubble-element Group baTgya bubble-r-container flex row" style="background-color: rgba(255, 255, 255, 0);"><button class="bubble-element Icon baTgyg" tabindex="" style="display: flex;"><svg viewBox="0 0 32 32" data-icon-set="feather" style="width: 100%; height: 100%;"><use width="32" height="32" href="/static/icon_libraries/feather-4.29.0.svg#pie-chart"></use></svg></button><div class="bubble-element Text baTgyf">Financeiro</div><button class="bubble-element Icon baThaPaL" tabindex="" style="display: flex;"><svg viewBox="0 0 32 32" data-icon-set="material" style="width: 100%; height: 100%;"><use width="32" height="32" href="/static/icon_libraries/material-icons-4.0.0-outlined.svg#keyboard_arrow_down"></use></svg></button></div><div class="clickable-element bubble-element Group baTgjaZ bubble-r-container flex row" style="background-color: rgba(255, 255, 255, 0); visibility: hidden; display: none;"><button class="bubble-element Icon baTgje" tabindex="" style="display: flex;"><svg viewBox="0 0 32 32" data-icon-set="feather" style="width: 100%; height: 100%;"><use width="32" height="32" href="/static/icon_libraries/feather-4.29.0.svg#map-pin"></use></svg></button><div class="bubble-element Text baTgja">Salas</div></div><div class="clickable-element bubble-element Group baTgyaS bubble-r-container flex row" style="background-color: rgba(255, 255, 255, 0);"><button class="bubble-element Icon baTgyaY" tabindex="" style="display: flex;"><svg viewBox="0 0 32 32" data-icon-set="feather" style="width: 100%; height: 100%;"><use width="32" height="32" href="/static/icon_libraries/feather-4.29.0.svg#bar-chart-2"></use></svg></button><div class="bubble-element Text baTgyaU">Relatórios</div></div></div><div class="bubble-element Shape baTgjf" style="background-color: rgb(233, 234, 235);"></div><div class="bubble-element Group baTgjg bubble-r-container flex column"><div class="clickable-element bubble-element Group baTgjw bubble-r-container flex row" style="background-color: rgba(255, 255, 255, 0);"><button class="bubble-element Icon baTgjy" tabindex="" style="display: flex;"><svg viewBox="0 0 32 32" data-icon-set="feather" style="width: 100%; height: 100%;"><use width="32" height="32" href="/static/icon_libraries/feather-4.29.0.svg#info"></use></svg></button><div class="bubble-element Text baTgjx">Suporte</div></div></div></div><div class="bubble-element Group baTgkaC bubble-r-container flex column" style="background-color: rgb(255, 255, 255);"><div class="clickable-element bubble-element Group baTgkaD bubble-r-container flex row" style="background-color: rgb(245, 245, 245);"><div class="bubble-element Image baTgkaE"><div class="aspect-ratio"></div><img src="https://e368ab1a5d854431712e6f6dd1e7ba0d.cdn.bubble.io/cdn-cgi/image/w=48,h=48,f=auto,dpr=1,fit=contain/f1754081652972x153822608392488300/images.png"></div><div class="bubble-element Group baTgkaI bubble-r-container flex column"><div class="bubble-element Text baTgkaJ">Juliana </div><div class="bubble-element Text baTgkaK">Admin</div><div class="bubble-element Text baTjdx clickable-element">Sair</div></div><button class="bubble-element Icon baTgkaO" tabindex="" style="display: flex;"><svg viewBox="0 0 32 32" data-icon-set="feather" style="width: 100%; height: 100%;"><use width="32" height="32" href="/static/icon_libraries/feather-4.29.0.svg#external-link"></use></svg></button></div></div></div></div><div class="greyout baTaMaBy" style="display: none;"></div><div class="bubble-element CustomElement baTaMaBy bubble-r-container flex column" style="left: 0px; right: 0px; bottom: unset; background-color: var(--color_surface_default); display: none; top: 20px; position: fixed;"><div class="bubble-element Group baTaWaBo bubble-r-container flex column" style="background-color: rgb(255, 255, 255);"><div class="bubble-element Group baTaWaEy bubble-r-container flex column" style="max-width: unset; max-height: unset;"><div class="bubble-element Group baTaWaDx bubble-r-container flex column" style="display: none;"><div class="bubble-element Group baTaWaJq bubble-r-container flex column"><div class="bubble-element Group baTaWaKh bubble-r-container flex row" style="background-color: rgba(var(--color_success_default_rgb), 0.12);"><div class="bubble-element ionic-IonicToggle" style="align-self: center; min-width: 51px; max-width: 51px; order: 1; min-height: 31px; max-height: 31px; width: 51px; flex-grow: 1; height: 31px; margin: 0px;"></div></div></div></div></div></div></div><div class="greyout baTgaAt" style="display: none;"></div><div class="bubble-element CustomElement baTgaAt bubble-r-container flex column" style="left: 0px; right: 0px; bottom: unset; background-color: rgb(255, 255, 255); display: none; top: 20px; position: fixed;"><div class="bubble-element Group baTaVaaK bubble-r-container flex row"><div class="bubble-element Group baTaVaaO bubble-r-container flex column"><div class="bubble-element Group baTaaAn bubble-r-container flex row" style="background-color: rgba(var(--color_primary_default_rgb), 0.1);"><div class="bubble-element ionic-IonicToggle" style="align-self: center; min-width: 51px; max-width: 51px; order: 2; min-height: 31px; max-height: 31px; width: 51px; flex-grow: 1; height: 31px; margin: 0px;"></div></div></div></div></div><div class="slideable-menu" data-outline="true" style="display: none; background: var(--color_primary_default); width: 150px; position: fixed; top: 0px; height: 100%; z-index: 2102; left: -150px; font-family: Inter; font-size: 16px; font-weight: 600; text-decoration: none; font-style: normal; color: var(--color_primary_contrast_default); box-shadow: rgba(10, 8, 8, 0.77) 2px 0px 4px 0px;"><div class="slideable-option non-empty"><div>Painel</div></div><div class="slideable-option non-empty"><div>Agenda</div></div><div class="slideable-option non-empty"><div>Financeiro</div></div><div class="slideable-option non-empty"><div>Prontuario</div></div><div class="slideable-option non-empty"><div>Pacientes</div></div><div class="slideable-option non-empty"><div>Perfil</div></div></div><div class="page-is-loaded"></div></body></html>

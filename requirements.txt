@@ -1,0 +1,14 @@
+flask
+python-dotenv
+apscheduler
+requests
+openai
+playwright
+gunicorn
+pytest
+
+# Notes:
+# - Keep this file in sync with the runtime used on Railway.
+# - Playwright requires installing browsers on the host; consider removing it
+#   from production requirements if you will rely on Terapee API instead of
+#   Playwright UI automation on Railway.
