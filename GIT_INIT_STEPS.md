@@ -61,3 +61,23 @@ Troubleshooting
 - "git: O termo 'git' não é reconhecido": instale Git for Windows and re-open PowerShell.
 - Push denied: check branch name (main vs master) and run the appropriate rename/push commands above.
 
+# tests/conftest.py
+from playwright.sync_api import sync_playwright
+import pytest
+
+@pytest.fixture(scope="session", autouse=True)
+def playwright_session():
+    with sync_playwright() as pw:
+        yield pw
+    # ao sair do with, browsers/processos são fechados automaticamente
+
+{
+  "message": {
+    "from": "5511999999999",
+    "text": {
+      "body": "Olá, meu nome é Maria, CPF 123.456.789-00, nasci em 01/01/1990"
+    }
+  },
+  "timestamp": 1693545600
+}
+
