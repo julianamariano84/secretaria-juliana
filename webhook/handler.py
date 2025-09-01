@@ -1,4 +1,5 @@
 ﻿from flask import Blueprint, jsonify, request
+import os
 import logging
 from .registrations import append_response, get_pending, create_pending
 from .registrations import apply_answers
@@ -41,6 +42,15 @@ def inbound():
     a text message from common shapes. If provider-specific mapping is
     desired, set a small adapter here.
     """
+    # optional secret validation: if WEBHOOK_SECRET is set, require the header
+    secret = os.getenv('WEBHOOK_SECRET')
+    if secret:
+        header_name = os.getenv('WEBHOOK_HEADER', 'X-Hook-Token')
+        token = request.headers.get(header_name)
+        if token != secret:
+            log.warning("webhook auth failed from %s header=%s", request.remote_addr, header_name)
+            return jsonify({"ok": False, "error": "unauthorized"}), 401
+
     payload = request.get_json(silent=True) or {}
 
     # try common shapes
