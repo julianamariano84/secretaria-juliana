@@ -27,7 +27,11 @@ jobs:
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     - name: Install Playwright browsers (if Playwright is used)
       run: |
-        # Install Playwright and browsers to ensure tests using Playwright run on CI
+        # Install system dependencies and Playwright browsers to ensure tests using Playwright run on CI
+        sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+          libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libxcomposite1 libxrandr2 \
+          libxdamage1 libxfixes3 libgbm1 libasound2 libpangocairo-1.0-0 libxss1 libxcb1 \
+          fonts-liberation wget ca-certificates && sudo rm -rf /var/lib/apt/lists/*
         python -m pip install playwright || true
         python -m playwright install --with-deps || true
     - name: Lint with flake8
@@ -57,6 +61,11 @@ jobs:
         pip install pytest playwright
     - name: Install Playwright browsers and dependencies
       run: |
+        # Install system dependencies required by Playwright on Ubuntu
+        sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+          libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libxcomposite1 libxrandr2 \
+          libxdamage1 libxfixes3 libgbm1 libasound2 libpangocairo-1.0-0 libxss1 libxcb1 \
+          fonts-liberation wget ca-certificates && sudo rm -rf /var/lib/apt/lists/*
         python -m playwright install --with-deps
     - name: Run Playwright/integration tests
       run: |
