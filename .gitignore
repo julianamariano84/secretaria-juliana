@@ -2,3 +2,19 @@ __pycache__/
 *.pyc
 .env
 /.env
+# logs, test output, and debug artifacts
+*.log
+*.txt
+*.png
+*.html
+pytest_output.txt
+git_push_*.txt
+dump_*.txt
+dump_*.png
+post_login_dump.html
+terapee_*.png
+terapee_*.html
+
+# virtualenv
+.venv/
+
