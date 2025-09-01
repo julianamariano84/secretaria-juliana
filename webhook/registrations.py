@@ -85,7 +85,9 @@ def create_pending(phone: str, name_hint: Optional[str] = None, initiated_by: st
         'initiated_by': initiated_by,
         'questions': questions,
         'answers': {},
-        'history': []
+    'history': [],
+    # payment info: will store provider id, url and status when payment created
+    'payment': None,
     }
     items.append(rec)
     _write_all(items)
@@ -195,6 +197,8 @@ def apply_answers(phone: str, answers: Dict[str, Any]) -> Optional[Dict[str, Any
     else:
         rec['status'] = 'pending'
 
+    # If registration is complete and confirm == True, leave to caller to create payment
+
     # persist
     for i, it in enumerate(items):
         if it.get('phone') == phone:
@@ -220,3 +224,34 @@ def extract_and_apply_from_text(phone: str, text: str) -> dict:
         return append_response(phone, text)
 
     return apply_answers(phone, parsed)
+
+
+def mark_payment_created(phone: str, payment_info: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    items = _read_all()
+    rec = _find_by_phone(items, phone)
+    if not rec:
+        return None
+    rec['payment'] = payment_info
+    # persist
+    for i, it in enumerate(items):
+        if it.get('phone') == phone:
+            items[i] = rec
+            break
+    _write_all(items)
+    return rec
+
+
+def mark_payment_confirmed(phone: str, payment_status: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    items = _read_all()
+    rec = _find_by_phone(items, phone)
+    if not rec:
+        return None
+    rec.setdefault('payment', {})['status'] = payment_status
+    rec['status'] = 'created'
+    rec['created_at'] = int(time.time())
+    for i, it in enumerate(items):
+        if it.get('phone') == phone:
+            items[i] = rec
+            break
+    _write_all(items)
+    return rec

@@ -73,6 +73,18 @@ def send_text(phone: str, message: str) -> dict:
     if local_client_token:
         headers["Client-Token"] = local_client_token
 
+    # Prefer /send-message endpoint when possible (some instances accept this and not /send-text)
+    # Allow override via env ZAPI_PREFERRED_ENDPOINT: 'send-message' or 'send-text'
+    preferred = os.getenv('ZAPI_PREFERRED_ENDPOINT')
+    send_message_url = None
+    if local_zapi_url:
+        # If ZAPI_URL already points to a specific endpoint, keep it; otherwise try to construct
+        if local_zapi_url.endswith('/send-text') or local_zapi_url.endswith('/send-message'):
+            send_message_url = local_zapi_url.replace('/send-text', '/send-message')
+        else:
+            # assume base URL like https://api.z-api.io/instances/<id>/token/<token>
+            send_message_url = local_zapi_url.rstrip('/') + '/send-message'
+
     # Fast mode: if enabled, only try the proven fast payload and fail fast
     ZAPI_FAST = os.getenv('ZAPI_FAST') == '1'
 
@@ -94,7 +106,16 @@ def send_text(phone: str, message: str) -> dict:
             log.debug('DEBUG_ZAPI: HEADERS=%s', json.dumps(headers, ensure_ascii=False))
             log.debug('DEBUG_ZAPI: PAYLOAD=%s', json.dumps(first_payload, ensure_ascii=False))
 
-        resp = requests.post(local_zapi_url, json=first_payload, headers=headers, timeout=15)
+        # If preference is to try /send-message first, use that URL when available
+        tried_urls = []
+        if preferred == 'send-message' or preferred is None:
+            if send_message_url:
+                tried_urls.append(send_message_url)
+                resp = requests.post(send_message_url, json=first_payload, headers=headers, timeout=15)
+            else:
+                resp = requests.post(local_zapi_url, json=first_payload, headers=headers, timeout=15)
+        else:
+            resp = requests.post(local_zapi_url, json=first_payload, headers=headers, timeout=15)
 
         if resp.ok:
             try:

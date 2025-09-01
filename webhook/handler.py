@@ -2,7 +2,7 @@
 import os
 import logging
 from .registrations import append_response, get_pending, create_pending
-from .registrations import apply_answers
+from .registrations import apply_answers, mark_payment_confirmed
 
 log = logging.getLogger(__name__)
 
@@ -11,6 +11,11 @@ try:
 except Exception:
     extract_registration_fields = None
     generate_greeting_and_action = None
+
+try:
+    from services.infinitepay import create_payment_intent
+except Exception:
+    create_payment_intent = None
 
 try:
     import messaging.sender as sender_mod
@@ -132,7 +137,34 @@ def inbound():
                                 except Exception:
                                     log.exception("failed to send greeting to %s", phone)
                         except Exception:
-                            pass
+                            log.exception('generate_greeting_and_action failed')
+
+                    # If registration is complete and user confirmed, create payment
+                    try:
+                        answers = rec.get('answers', {})
+                        confirmed = answers.get('confirm')
+                        if rec.get('status') == 'complete' and confirmed in (True, 'sim', 'Sim', 'SIM', 'yes', '1'):
+                            # create a payment using InfinitePay if available
+                            if create_payment_intent:
+                                try:
+                                    # build an order id and result_url so deeplink mode can return a link
+                                    import uuid
+                                    oid = str(uuid.uuid4())
+                                    result_url = os.getenv('WEBHOOK_PUBLIC_URL', '').rstrip('/') + '/webhook/payment-callback'
+                                    pay = create_payment_intent(phone, amount_cents=15000, description='Consulta médica', order_id=oid, result_url=result_url)
+                                    # try to extract a payment url from provider response
+                                    url = pay.get('payment_url') or pay.get('url') or pay.get('checkout_url')
+                                    from .registrations import mark_payment_created
+                                    mark_payment_created(phone, {'provider': 'infinitepay', 'raw': pay, 'url': url, 'order_id': pay.get('order_id') or oid})
+                                    if url:
+                                        try:
+                                            send_text(phone, f"Para finalizar o agendamento, por favor efetue o pagamento: {url}")
+                                        except Exception:
+                                            log.exception("failed to send payment link to %s", phone)
+                                except Exception:
+                                    log.exception('failed to create payment for %s', phone)
+                    except Exception:
+                        log.exception('payment creation flow failed for %s', phone)
             except Exception:
                 pass
             return jsonify({"ok": True, "record": rec, "extracted": True})
@@ -186,6 +218,39 @@ def inbound():
         pass
 
     return jsonify({"ok": True, "record": rec})
+
+
+@bp.route('/payment-callback', methods=['GET', 'POST'])
+def payment_callback():
+    """Endpoint to receive InfinitePay deeplink/result callbacks.
+
+    InfinitePay may call a deeplink/result URL with query parameters such as
+    order_id, nsu, aut, card_brand, etc. We accept GET or POST and try to
+    map the callback to a phone number (if provided) and mark the payment
+    as confirmed.
+    """
+    # collect params
+    params = request.args.to_dict() or request.get_json(silent=True) or {}
+
+    # prefer phone param if present
+    phone = params.get('phone') or params.get('customer_phone') or params.get('order_phone')
+
+    try:
+        if phone:
+            # mark payment confirmed in registrations
+            mark_payment_confirmed(phone, params)
+            # notify user
+            try:
+                send_text(phone, "Pagamento recebido! Sua consulta foi agendada. Entraremos em contato para confirmar o horário.")
+            except Exception:
+                log.exception('failed to send payment confirmation to %s', phone)
+            return jsonify({"ok": True, "phone": phone, "params": params})
+        else:
+            log.info('payment_callback received without phone: %s', params)
+            return jsonify({"ok": True, "note": "no phone provided", "params": params})
+    except Exception:
+        log.exception('payment_callback failed')
+        return jsonify({"ok": False}), 500
 
 
 def handle_webhook(payload: dict) -> dict:
