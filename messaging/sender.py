@@ -106,21 +106,28 @@ def send_text(phone: str, message: str) -> dict:
             log.debug('DEBUG_ZAPI: HEADERS=%s', json.dumps(headers, ensure_ascii=False))
             log.debug('DEBUG_ZAPI: PAYLOAD=%s', json.dumps(first_payload, ensure_ascii=False))
 
-        # If preference is to try /send-message first, use that URL when available
+        # If the configured URL includes a token path segment, prefer using the token-in-path
+        # variant first and avoid sending other auth headers (some instances expect only the
+        # token embedded in the URL). Otherwise use the normal headers.
         tried_urls = []
-        if preferred == 'send-message' or preferred is None:
-            # if we have both variants, try /send-message first then fall back to the provided URL
-            if send_message_url:
-                tried_urls.append(send_message_url)
-                resp = requests.post(send_message_url, json=first_payload, headers=headers, timeout=15)
-                if not resp.ok:
-                    # try original URL as fallback for the fast path
-                    tried_urls.append(local_zapi_url)
-                    resp = requests.post(local_zapi_url, json=first_payload, headers=headers, timeout=15)
-            else:
-                resp = requests.post(local_zapi_url, json=first_payload, headers=headers, timeout=15)
+        token_in_path = '/token/' in str(local_zapi_url)
+        # prepare a lean header set for token-in-path attempts to avoid conflicting auth
+        if token_in_path:
+            headers_fast = {'Content-Type': 'application/json'}
         else:
-            resp = requests.post(local_zapi_url, json=first_payload, headers=headers, timeout=15)
+            headers_fast = headers
+
+        # prefer trying the URL that contains the token first (local_zapi_url), then try
+        # the /send-message variant as fallback. This favors token-in-path + phone/message.
+        if send_message_url:
+            tried_urls.append(local_zapi_url)
+            resp = requests.post(local_zapi_url, json=first_payload, headers=headers_fast, timeout=15)
+            if not resp.ok:
+                tried_urls.append(send_message_url)
+                # when falling back to send_message_url, restore full headers
+                resp = requests.post(send_message_url, json=first_payload, headers=headers, timeout=15)
+        else:
+            resp = requests.post(local_zapi_url, json=first_payload, headers=headers_fast, timeout=15)
 
         if resp.ok:
             # Some Z-API instances return HTTP 200 but include an error object in JSON
