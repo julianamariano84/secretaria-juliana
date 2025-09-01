@@ -6,6 +6,7 @@ RuntimeError or return None so existing flows keep working.
 import os
 import json
 from typing import Optional, Dict, Any, List
+import logging
 
 try:
     # openai>=1.0.0 exposes a client class
@@ -39,7 +40,8 @@ def extract_registration_fields(text: str) -> Optional[Dict[str, Any]]:
     try:
         client = _require_client()
     except Exception as e:
-        print(f"[openai_client] client init error: {e}")
+        logger = logging.getLogger(__name__)
+        logger.debug("[openai_client] client init error: %s", e)
         # fallback to local heuristic extractor when client can't be created
         return local_extract_registration_fields(text)
     prompt = (
@@ -226,7 +228,8 @@ def generate_registration_questions(context: Optional[str] = None) -> Optional[L
     try:
         client = _require_client()
     except Exception as e:
-        print(f"[openai_client] client init error: {e}")
+        logger = logging.getLogger(__name__)
+        logger.debug("[openai_client] client init error: %s", e)
         return {"error": str(e)}
     prompt = "Gere 5 perguntas curtas para coletar nome completo, data de nascimento, CPF, endereço e consentimento para cadastro."
     if context:
@@ -250,3 +253,86 @@ def generate_registration_questions(context: Optional[str] = None) -> Optional[L
         except Exception:
             pass
         return {"error": str(e)}
+
+
+def generate_greeting_and_action(text: str, first_contact: bool = False) -> Dict[str, Any]:
+    """Generate a short greeting and decide the next action.
+
+    Returns a dict with keys:
+      - greeting: str (a short greeting to send to the user)
+      - action: one of 'ask', 'confirm', 'none'
+      - question: optional follow-up question when action == 'ask'
+
+    This first tries the OpenAI client and falls back to a lightweight
+    heuristic using local_extract_registration_fields.
+    """
+    # default fallback
+    fallback = {"greeting": "Olá! Obrigado pela mensagem.", "action": "ask", "question": "Qual seu nome completo?"}
+    if not isinstance(text, str) or not text.strip():
+        return fallback
+
+    # detect short greeting-only messages and, on first contact, return a
+    # creative presentation using a secretary name from env
+    import re
+    greeting_rx = re.compile(r"^\s*(oi|ol[áa]|ola|bom dia|boa tarde|boa noite|oi\b|olá\b)[!,.\s]*$", re.I)
+    if first_contact and greeting_rx.match(text.strip()[:50]):
+        name = os.getenv('SECRETARY_NAME', 'Márcia')
+        greet = f"Oi! Eu sou a {name}, secretária da Juliana Mariano. Em que posso ajudar hoje?"
+        return {"greeting": greet, "action": "ask", "question": "Posso começar pedindo seu nome completo?"}
+
+    try:
+        client = _require_client()
+    except Exception as e:
+        # fallback to heuristic
+        logger = logging.getLogger(__name__)
+        logger.debug("[openai_client] client init error: %s", e)
+        try:
+            parsed = local_extract_registration_fields(text)
+        except Exception:
+            return fallback
+
+        # determine first missing field
+        fields = ['name', 'dob', 'cpf', 'address', 'confirm']
+        missing = [f for f in fields if not parsed.get(f)]
+        if not missing:
+            name = parsed.get('name') or ''
+            greet = f"Olá{(' ' + name) if name else ''}! Recebi seus dados. Você confirma o cadastro? (sim/não)"
+            return {"greeting": greet, "action": "confirm", "question": None}
+        # ask for the first missing
+        qmap = {'name': 'Qual seu nome completo?', 'dob': 'Qual sua data de nascimento (dd/mm/aaaa)?', 'cpf': 'Qual seu CPF?', 'address': 'Qual seu endereço?', 'confirm': 'Você confirma que deseja se cadastrar? (sim/não)'}
+        return {"greeting": "Olá! Obrigado.", "action": "ask", "question": qmap.get(missing[0], 'Pode me informar mais detalhes?')}
+
+    # If we have a client, ask the model for a small JSON response
+    prompt = (
+        "Leia a mensagem abaixo e gere UM JSON com as chaves: greeting, action, question.\n"
+        "- greeting: uma única frase curta de saudação em PT-BR\n"
+        "- action: 'ask'|'confirm'|'none' (o que o atendimento deve fazer a seguir)\n"
+        "- question: se action=='ask', coloque a pergunta a ser enviada; caso contrário null\n\n"
+        "Mensagem:\n" + text + "\n\nJSON:" 
+    )
+
+    try:
+        resp = client.chat.completions.create(
+            model=os.getenv('OPENAI_MODEL', 'gpt-3.5-turbo'),
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0,
+            max_tokens=200,
+        )
+        content = resp.choices[0].message.content
+        first_brace = content.find('{')
+        if first_brace >= 0:
+            content = content[first_brace:]
+        parsed = json.loads(content)
+        # ensure keys exist and have sensible defaults
+        return {
+            'greeting': parsed.get('greeting') or fallback['greeting'],
+            'action': parsed.get('action') or 'none',
+            'question': parsed.get('question') if parsed.get('question') else None,
+        }
+    except Exception as e:
+        print(f"[openai_client] greeting/action error: {e}")
+        try:
+            print('[openai_client] raw response:', getattr(e, 'http_body', None) or getattr(e, 'args', None))
+        except Exception:
+            pass
+        return fallback
