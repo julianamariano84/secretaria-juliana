@@ -21,6 +21,12 @@ try:
 except Exception:
     create_payment_intent = None
 
+# Optional assistant layer for smarter replies
+try:
+    from services.assistant import handle_user_message
+except Exception:
+    handle_user_message = None
+
 try:
     import messaging.sender as sender_mod
     send_text = getattr(sender_mod, 'send_text', None)
@@ -272,8 +278,19 @@ def inbound():
                             backoff = int(os.getenv('PROMPT_BACKOFF_SECONDS', '10'))
                             if question and question != last and question != last_q and (now - last_at) >= backoff:
                                 try:
-                                    log.info("sending question to %s: %s", canonical_phone, question)
-                                    _maybe_send_text(canonical_phone, question)
+                                    # Try assistant to produce a warmer combined message
+                                    sent_payload = None
+                                    if handle_user_message:
+                                        try:
+                                            ans = handle_user_message(canonical_phone, text, first_contact=first_contact)
+                                            msgs = (ans or {}).get('messages') or []
+                                            if msgs:
+                                                sent_payload = msgs[0]
+                                        except Exception:
+                                            sent_payload = None
+                                    to_send = sent_payload or question
+                                    log.info("sending question to %s: %s", canonical_phone, to_send)
+                                    _maybe_send_text(canonical_phone, to_send)
                                     _LAST_SENT_QUESTION[canonical_phone] = question
                                     _LAST_SENT_AT[canonical_phone] = now
                                     try:
@@ -368,8 +385,19 @@ def inbound():
                     backoff = int(os.getenv('PROMPT_BACKOFF_SECONDS', '10'))
                     if question and question != last and question != last_q and (now - last_at) >= backoff:
                         try:
-                            log.info("sending question to %s: %s", canonical_phone, question)
-                            _maybe_send_text(canonical_phone, question)
+                            # Try assistant layer for warmer combined message
+                            sent_payload = None
+                            if handle_user_message:
+                                try:
+                                    ans = handle_user_message(canonical_phone, text, first_contact=first_contact)
+                                    msgs = (ans or {}).get('messages') or []
+                                    if msgs:
+                                        sent_payload = msgs[0]
+                                except Exception:
+                                    sent_payload = None
+                            to_send = sent_payload or question
+                            log.info("sending question to %s: %s", canonical_phone, to_send)
+                            _maybe_send_text(canonical_phone, to_send)
                             _LAST_SENT_QUESTION[canonical_phone] = question
                             _LAST_SENT_AT[canonical_phone] = now
                             try:
