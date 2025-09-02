@@ -60,15 +60,18 @@ def send_text(phone: str, message: str) -> dict:
     local_zapi_token = os.getenv("ZAP_TOKEN") or os.getenv("ZAPI_TOKEN")
     local_client_token = os.getenv("CLIENT_TOKEN") or os.getenv("CLIENTTOKEN") or os.getenv("CLIENT_TOKEN_ID")
 
-    # If no Z-API config, fallback to stub
-    if not local_zapi_url and not local_zapi_token:
+    # If no Z-API config (no URL and no auth at all), fallback to stub
+    if not local_zapi_url and not local_zapi_token and not local_client_token:
         return _stub_send(phone, message)
 
     if requests is None:
         raise RuntimeError("Biblioteca 'requests' não está disponível. Instale com pip install requests")
 
-    if not local_zapi_url or not local_zapi_token:
-        raise RuntimeError("Z-API parcialmente configurada: defina ZAPI_URL e ZAP_TOKEN (ou ZAPI_TOKEN) no .env")
+    # Require URL and at least one authentication method (ZAP_TOKEN or CLIENT_TOKEN)
+    if not local_zapi_url:
+        raise RuntimeError("Z-API parcialmente configurada: defina ZAPI_URL no .env")
+    if not (local_zapi_token or local_client_token):
+        raise RuntimeError("Z-API parcialmente configurada: defina ZAP_TOKEN (ou CLIENT_TOKEN) no .env")
 
     # Simplified: single proven request variant only.
     # Build canonical URL ending with /send-text
@@ -104,50 +107,127 @@ def send_text(phone: str, message: str) -> dict:
         # continue and let the request/response provide details.
         pass
 
-    # Single payload: phone + message
-    payload = {"phone": phone, "message": message}
-
-    # Build headers: prefer Client-Token header when present (proven working variant)
-    headers_out = {"Content-Type": "application/json"}
-    # If CLIENT_TOKEN is configured, always send it as Client-Token header (proved working).
-    if local_client_token:
-        headers_out["Client-Token"] = local_client_token
-    else:
-        # fallback to Authorization header only when client token isn't present
-        headers_out["Authorization"] = f"Bearer {local_zapi_token}"
-
-    try:
-        resp = requests.post(local_zapi_url, json=payload, headers=headers_out, timeout=15)
-    except Exception as e:
-        raise RuntimeError(f"Z-API request failed: {e}")
-
-    # Interpret response: 2xx -> try to return parsed JSON, else raise with body
-    if 200 <= getattr(resp, 'status_code', 0) < 300:
+    # Build a list of candidate payload and header shapes to try
+    def _mask_token(val: str) -> str:
+        if not val:
+            return None
         try:
-            return resp.json()
+            v = str(val)
         except Exception:
-            return {"status": "ok", "raw": getattr(resp, 'text', '')}
+            return '***'
+        if len(v) <= 6:
+            return v[:1] + '***' + v[-1:]
+        return v[:3] + '***' + v[-3:]
 
-    # Non-2xx -> try to surface useful error info
-    body = None
-    try:
-        body = resp.json()
-    except Exception:
-        body = getattr(resp, 'text', '')
+    # candidate payload forms
+    payloads = [
+        {"phone": phone, "message": message},
+        {"to": phone, "text": message},
+    ]
 
-    # Helpful, specific error for a common misconfiguration
-    try:
-        if (isinstance(body, dict) and body.get('error') == 'Instance not found') or (
-            isinstance(body, str) and 'Instance not found' in body
-        ):
-            raise RuntimeError(
-                "Z-API instance not found (404). Check your ZAPI_URL and ZAP_TOKEN for typos or expired token; "
-                "also verify CLIENT_TOKEN if your instance requires it. Response body: " + str(body)
-            )
-    except RuntimeError:
-        raise
-    except Exception:
-        # fall through to generic error below on unexpected shape
-        pass
+    # candidate endpoint variants (prefer existing computed url, then try send-message)
+    urls = [local_zapi_url]
+    if '/send-text' in local_zapi_url:
+        urls.append(local_zapi_url.replace('/send-text', '/send-message'))
+    elif '/send-message' in local_zapi_url:
+        urls.append(local_zapi_url.replace('/send-message', '/send-text'))
+    else:
+        urls.append(local_zapi_url.rstrip('/') + '/send-message')
 
-    raise RuntimeError(f"Z-API send failed status={getattr(resp,'status_code','N/A')} body={body}")
+    # header variants: prefer Client-Token when available, then Authorization bearer
+    header_variants = []
+    base = {"Content-Type": "application/json"}
+    if local_client_token:
+        h = base.copy()
+        h["Client-Token"] = local_client_token
+        header_variants.append(h)
+    if local_zapi_token:
+        h2 = base.copy()
+        h2["Authorization"] = f"Bearer {local_zapi_token}"
+        header_variants.append(h2)
+
+    last_err = None
+    last_resp = None
+
+    # Try combinations in deterministic order
+    for u in urls:
+        for h in header_variants:
+            for p in payloads:
+                # Debug masked logging
+                if os.getenv('DEBUG_ZAPI') == '1':
+                    try:
+                        masked_url = u
+                        try:
+                            if '/token/' in masked_url:
+                                parts = masked_url.split('/token/', 1)
+                                token_part = parts[1]
+                                token_val = token_part.split('/', 1)[0] if token_part else ''
+                                rest = ''
+                                if '/' in token_part:
+                                    rest = '/' + token_part.split('/', 1)[1]
+                                masked_url = parts[0] + '/token/' + (_mask_token(token_val) or '') + rest
+                        except Exception:
+                            masked_url = '***'
+                        masked_headers = {}
+                        for k, v in h.items():
+                            if k.lower() in ('authorization', 'client-token'):
+                                masked_headers[k] = _mask_token(v)
+                            else:
+                                masked_headers[k] = v
+                        log.debug("Z-API request -> attempt url=%s headers=%s payload=%s", masked_url, masked_headers, p)
+                    except Exception:
+                        log.debug("Z-API request -> (unable to format debug info)")
+
+                try:
+                    resp = requests.post(u, json=p, headers=h, timeout=15)
+                except Exception as e:
+                    last_err = e
+                    log.debug("Z-API request exception for url=%s: %s", u, e)
+                    continue
+
+                last_resp = resp
+                # debug response
+                if os.getenv('DEBUG_ZAPI') == '1':
+                    try:
+                        resp_body = resp.json()
+                    except Exception:
+                        resp_body = getattr(resp, 'text', '')
+                    try:
+                        log.debug("Z-API response -> status=%s body=%s", getattr(resp, 'status_code', None), resp_body)
+                    except Exception:
+                        log.debug("Z-API response -> (unable to format response)")
+
+                # If 2xx -> return
+                if 200 <= getattr(resp, 'status_code', 0) < 300:
+                    try:
+                        return resp.json()
+                    except Exception:
+                        return {"status": "ok", "raw": getattr(resp, 'text', '')}
+
+                # If provider clearly says instance not found, raise early (token/instance mismatch)
+                try:
+                    body = None
+                    try:
+                        body = resp.json()
+                    except Exception:
+                        body = getattr(resp, 'text', '')
+                    if (isinstance(body, dict) and body.get('error') == 'Instance not found') or (
+                        isinstance(body, str) and 'Instance not found' in body
+                    ):
+                        raise RuntimeError(
+                            "Z-API instance not found (404). Check your ZAPI_URL and ZAP_TOKEN for typos or expired token; "
+                            "also verify CLIENT_TOKEN if your instance requires it. Response body: " + str(body)
+                        )
+                except RuntimeError:
+                    raise
+                except Exception:
+                    # continue trying other permutations
+                    pass
+
+                # record last error context
+                last_err = RuntimeError(f"Z-API send failed status={getattr(resp,'status_code','N/A')} body={getattr(resp,'text','')} url={u}")
+
+    # exhausted attempts
+    if isinstance(last_err, Exception):
+        raise last_err
+    raise RuntimeError("Z-API send failed: unknown error")
