@@ -37,6 +37,10 @@ _LAST_DEBUG = {
     'attempts': [],  # list of {url, headers, payload, status, body}
 }
 
+# short-term in-process dedupe to avoid sending the same text multiple times
+# to the same phone due to webhook echoes or retries
+_SENT_RECENT = {}
+
 def get_last_debug():
     try:
         return {
@@ -77,9 +81,56 @@ def send_text(phone: str, message: str) -> dict:
     local_zapi_token = os.getenv("ZAP_TOKEN") or os.getenv("ZAPI_TOKEN")
     local_client_token = os.getenv("CLIENT_TOKEN") or os.getenv("CLIENTTOKEN") or os.getenv("CLIENT_TOKEN_ID")
 
+    # Normalize phone early (digits only) for dedupe purposes
+    clean_phone = re.sub(r"\D", "", phone) if isinstance(phone, str) else phone
+
+    # In-process dedupe: skip if same phone+message was sent very recently
+    try:
+        ttl = int(os.getenv('ZAPI_SEND_DEDUP_SECONDS', '30'))
+    except Exception:
+        ttl = 30
+    if ttl > 0 and isinstance(clean_phone, str) and isinstance(message, str):
+        try:
+            now = int(time.time())
+            key = (clean_phone, message)
+            last = _SENT_RECENT.get(key)
+            if last and (now - int(last)) < ttl:
+                # record skipped attempt for debug visibility
+                if os.getenv('DEBUG_ZAPI') == '1':
+                    try:
+                        log.debug("Z-API send skipped (dedupe %ss): to=%s message=%s", ttl, clean_phone, message)
+                        # minimal record of skip
+                        try:
+                            def _mask_token(val: str) -> str:
+                                if not val:
+                                    return None
+                                v = str(val)
+                                if len(v) <= 6:
+                                    return v[:1] + '***' + v[-1:]
+                                return v[:3] + '***' + v[-3:]
+                            _LAST_DEBUG['ts'] = now
+                            attempts = _LAST_DEBUG.setdefault('attempts', [])
+                            attempts.append({
+                                'url': '(skipped-dedupe)',
+                                'headers': {},
+                                'payload': {'phone': clean_phone, 'message': message},
+                                'status': 'SKIP',
+                                'body': f'skipped duplicate within {ttl}s',
+                            })
+                            if len(attempts) > 5:
+                                del attempts[:-5]
+                        except Exception:
+                            pass
+                    except Exception:
+                        pass
+                return {"to": clean_phone, "message": message, "status": "skipped_duplicate"}
+            _SENT_RECENT[key] = now
+        except Exception:
+            pass
+
     # If no Z-API config (no URL and no auth at all), fallback to stub
     if not local_zapi_url and not local_zapi_token and not local_client_token:
-        return _stub_send(phone, message)
+        return _stub_send(clean_phone or phone, message)
 
     if requests is None:
         raise RuntimeError("Biblioteca 'requests' não está disponível. Instale com pip install requests")

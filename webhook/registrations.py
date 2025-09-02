@@ -116,13 +116,37 @@ def append_response(phone: str, text: str, ts: Optional[int] = None) -> Dict[str
         items = _read_all()  # reload
         rec = _find_by_phone(items, phone)
 
-    # record history
-    rec.setdefault('history', []).append({'ts': ts, 'text': text})
+    # record history (avoid duplicating identical consecutive entries)
+    hist = rec.setdefault('history', [])
+    if not hist or hist[-1].get('text') != text:
+        hist.append({'ts': ts, 'text': text})
 
     # attempt to fill next unanswered question using heuristics
+    # Do not treat the last asked question itself as an answer.
+    last_asked = None
+    try:
+        # infer last question we asked from previous history entry if it matches known prompts
+        prompts = {
+            'name': 'Qual seu nome completo?',
+            'dob': 'Qual sua data de nascimento (dd/mm/aaaa)?',
+            'cpf': 'Qual seu CPF?',
+            'address': 'Qual seu endereço?',
+            'confirm': 'Você confirma que deseja se cadastrar? (sim/não)'
+        }
+        if len(hist) >= 2:
+            prev_text = hist[-2].get('text')
+            for key, prompt in prompts.items():
+                if prev_text == prompt:
+                    last_asked = key
+                    break
+    except Exception:
+        last_asked = None
+
     for q in rec.get('questions', []):
         if q not in rec.get('answers', {}):
-            # store the raw text under the question key
+            # if the user only echoed the question, don't store as answer
+            if last_asked == q and text.strip() in (prompts.get(q),):
+                break
             rec.setdefault('answers', {})[q] = text
             break
 

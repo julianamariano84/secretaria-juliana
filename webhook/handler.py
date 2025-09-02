@@ -38,8 +38,9 @@ bp = Blueprint("webhook", __name__, url_prefix="/webhook")
 # - IGNORE_FROM_ME: ignora callbacks de mensagens enviadas pela própria instância
 # - SPAM_GUARD_SECONDS: janela curta para evitar múltiplas respostas ao mesmo texto
 IGNORE_FROM_ME = os.getenv('IGNORE_FROM_ME', '1') == '1'
-SPAM_GUARD_SECONDS = int(os.getenv('SPAM_GUARD_SECONDS', '10'))
+SPAM_GUARD_SECONDS = int(os.getenv('SPAM_GUARD_SECONDS', '20'))
 _LAST_SEEN = {}
+_LAST_SENT_QUESTION = {}
 
 
 @bp.route("/ping", methods=["GET"])
@@ -150,10 +151,13 @@ def inbound():
                                 last = (rec.get('history') or [])[-1].get('text') if rec.get('history') else None
                             except Exception:
                                 last = None
-                            if question and question != last:
+                            # avoid re-sending same question we already sent very recently
+                            last_q = _LAST_SENT_QUESTION.get(phone)
+                            if question and question != last and question != last_q:
                                 try:
                                     log.info("sending question to %s: %s", phone, question)
                                     send_text(phone, question)
+                                    _LAST_SENT_QUESTION[phone] = question
                                     sent_any = True
                                 except Exception:
                                     log.exception("failed to send question to %s", phone)
@@ -234,10 +238,12 @@ def inbound():
                         last = (rec.get('history') or [])[-1].get('text') if rec.get('history') else None
                     except Exception:
                         last = None
-                    if question and question != last:
+                    last_q = _LAST_SENT_QUESTION.get(phone)
+                    if question and question != last and question != last_q:
                         try:
                             log.info("sending question to %s: %s", phone, question)
                             send_text(phone, question)
+                            _LAST_SENT_QUESTION[phone] = question
                             sent_any = True
                         except Exception:
                             log.exception("failed to send question to %s", phone)
