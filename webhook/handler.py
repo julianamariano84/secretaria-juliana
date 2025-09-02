@@ -304,6 +304,15 @@ def inbound():
     return jsonify({"ok": True, "record": rec})
 
 
+@bp.route('/entrada', methods=['POST'])
+def entrada():
+    """Portuguese alias for /webhook/inbound.
+
+    Delegates to inbound() to ensure identical anti-loop behavior.
+    """
+    return inbound()
+
+
 @bp.route('/payment-callback', methods=['GET', 'POST'])
 def payment_callback():
     """Endpoint to receive InfinitePay deeplink/result callbacks.
