@@ -86,6 +86,9 @@ def create_pending(phone: str, name_hint: Optional[str] = None, initiated_by: st
         'questions': questions,
         'answers': {},
         'history': [],
+    # greeting control to avoid repeated greetings
+    'greeting_sent': False,
+    'greeting_sent_at': None,
         # payment info: will store provider id, url and status when payment created
         'payment': None,
         # scheduling info for Terapee integration
@@ -213,6 +216,65 @@ def set_last_sent_question(phone: str, question: str) -> Optional[Dict[str, Any]
         rec = _find_by_phone(items, phone)
     rec['last_sent_question'] = question
     rec['last_sent_at'] = int(time.time())
+    for i, it in enumerate(items):
+        if it.get('phone') == phone:
+            items[i] = rec
+            break
+    _write_all(items)
+    return rec
+
+
+def get_last_outbound(phone: str) -> Optional[Dict[str, Any]]:
+    """Return last outbound message record {'ts': int, 'text': str} for phone, if any."""
+    items = _read_all()
+    rec = _find_by_phone(items, phone)
+    if not rec:
+        return None
+    out = rec.get('last_outbound')
+    if isinstance(out, dict) and 'text' in out:
+        return out
+    # backward compat: derive from last_sent_question if present
+    if rec.get('last_sent_question'):
+        return {'ts': rec.get('last_sent_at') or 0, 'text': rec.get('last_sent_question')}
+    return None
+
+
+def set_last_outbound(phone: str, text: str) -> Optional[Dict[str, Any]]:
+    """Persist last outbound message text and timestamp for cross-worker dedupe."""
+    if not phone or not text:
+        return None
+    items = _read_all()
+    rec = _find_by_phone(items, phone)
+    if not rec:
+        rec = create_pending(phone)
+        items = _read_all()
+        rec = _find_by_phone(items, phone)
+    rec['last_outbound'] = {'ts': int(time.time()), 'text': text}
+    for i, it in enumerate(items):
+        if it.get('phone') == phone:
+            items[i] = rec
+            break
+    _write_all(items)
+    return rec
+
+
+def get_greeting_sent(phone: str) -> bool:
+    items = _read_all()
+    rec = _find_by_phone(items, phone)
+    if not rec:
+        return False
+    return bool(rec.get('greeting_sent'))
+
+
+def mark_greeting_sent(phone: str) -> Optional[Dict[str, Any]]:
+    items = _read_all()
+    rec = _find_by_phone(items, phone)
+    if not rec:
+        rec = create_pending(phone)
+        items = _read_all()
+        rec = _find_by_phone(items, phone)
+    rec['greeting_sent'] = True
+    rec['greeting_sent_at'] = int(time.time())
     for i, it in enumerate(items):
         if it.get('phone') == phone:
             items[i] = rec

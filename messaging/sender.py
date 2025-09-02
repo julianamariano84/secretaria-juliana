@@ -88,8 +88,44 @@ def send_text(phone: str, message: str) -> dict:
     local_zapi_token = os.getenv("ZAP_TOKEN") or os.getenv("ZAPI_TOKEN")
     local_client_token = os.getenv("CLIENT_TOKEN") or os.getenv("CLIENTTOKEN") or os.getenv("CLIENT_TOKEN_ID")
 
-    # Normalize phone early (digits only) for dedupe purposes
+    # Normalize phone early (digits only) for dedupe and policy checks
     clean_phone = re.sub(r"\D", "", phone) if isinstance(phone, str) else phone
+
+    # Policy: optional block/allow lists via env to avoid accidental sends
+    try:
+        bl_raw = os.getenv('BLOCK_PHONES', '')
+        al_raw = os.getenv('ALLOW_PHONES', '')
+        block = {re.sub(r"\D", "", p) for p in bl_raw.replace(';', ',').split(',') if p.strip()}
+        allow = {re.sub(r"\D", "", p) for p in al_raw.replace(';', ',').split(',') if p.strip()}
+    except Exception:
+        block, allow = set(), set()
+    if isinstance(clean_phone, str):
+        # If ALLOW list is set, only send to those; otherwise skip
+        if allow and clean_phone not in allow:
+            if os.getenv('DEBUG_ZAPI') == '1':
+                try:
+                    log.debug("Z-API send skipped (allowlist): to=%s not in ALLOW_PHONES", clean_phone)
+                    _LAST_DEBUG['ts'] = int(time.time())
+                    attempts = _LAST_DEBUG.setdefault('attempts', [])
+                    attempts.append({'url': '(skipped-allowlist)', 'headers': {}, 'payload': {'phone': clean_phone, 'message': message}, 'status': 'SKIP', 'body': 'not in ALLOW_PHONES'})
+                    if len(attempts) > 5:
+                        del attempts[:-5]
+                except Exception:
+                    pass
+            return {"to": clean_phone, "message": message, "status": "skipped_not_allowed"}
+        # If phone is in BLOCK list, skip
+        if clean_phone in block:
+            if os.getenv('DEBUG_ZAPI') == '1':
+                try:
+                    log.debug("Z-API send skipped (blocklist): to=%s in BLOCK_PHONES", clean_phone)
+                    _LAST_DEBUG['ts'] = int(time.time())
+                    attempts = _LAST_DEBUG.setdefault('attempts', [])
+                    attempts.append({'url': '(skipped-blocklist)', 'headers': {}, 'payload': {'phone': clean_phone, 'message': message}, 'status': 'SKIP', 'body': 'in BLOCK_PHONES'})
+                    if len(attempts) > 5:
+                        del attempts[:-5]
+                except Exception:
+                    pass
+            return {"to": clean_phone, "message": message, "status": "skipped_blocked"}
 
     # In-process dedupe: skip if same phone+message was sent very recently
     try:

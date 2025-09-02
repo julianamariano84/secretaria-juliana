@@ -4,6 +4,7 @@ import logging
 import time
 from .registrations import append_response, get_pending, create_pending
 from .registrations import get_last_history, get_last_sent_question, set_last_sent_question
+from .registrations import get_greeting_sent, mark_greeting_sent
 from .registrations import get_last_outbound
 from .registrations import apply_answers, mark_payment_confirmed, set_scheduling_status
 
@@ -48,6 +49,40 @@ _LAST_SENT_AT = {}
 _SEEN_MSG_IDS = {}
 
 
+def _normalize_text(s: str) -> str:
+    try:
+        return ' '.join((s or '').split()).casefold()
+    except Exception:
+        return s or ''
+
+
+def _is_non_chat_event(payload: dict) -> bool:
+    """Heuristic: return True for status/ack events that should not trigger replies."""
+    try:
+        if not isinstance(payload, dict):
+            return True
+        # Meta/WhatsApp style statuses
+        if isinstance(payload.get('statuses'), list):
+            return True
+        # Common top-level event/status fields
+        evt = (payload.get('event') or payload.get('type') or '').lower()
+        if evt in ('status', 'ack', 'message_ack', 'delivered', 'read', 'sent'):
+            return True
+        if payload.get('status') in ('sent', 'delivered', 'read'):
+            return True
+        # Z-API/others nested message type
+        if isinstance(payload.get('message'), dict):
+            mt = (payload['message'].get('type') or '').lower()
+            if mt and mt not in ('text', 'chat', 'message'):
+                return True
+        # explicit delivery status hints
+        if any(k in payload for k in ('messageStatus', 'acknowledged', 'ackCode', 'delivery')):
+            return True
+    except Exception:
+        return False
+    return False
+
+
 @bp.route("/ping", methods=["GET"])
 def ping():
     return jsonify({"ok": True})
@@ -72,6 +107,10 @@ def inbound():
 
     payload = request.get_json(silent=True) or {}
 
+    # Drop delivery/status callbacks early
+    if _is_non_chat_event(payload):
+        return jsonify({"ok": True, "ignored": "non_chat_event"}), 200
+
     # Ignore messages that were sent by ourselves when provider flags them
     try:
         from_me = False
@@ -83,6 +122,13 @@ def inbound():
             return jsonify({"ok": True, "ignored": "fromMe"}), 200
     except Exception:
         pass
+
+    # Optional inbound blocklist via BLOCK_PHONES env
+    try:
+        bl_raw = os.getenv('BLOCK_PHONES', '')
+        block = {(''.join(ch for ch in p if ch.isdigit())) for p in bl_raw.replace(';', ',').split(',') if p.strip()}
+    except Exception:
+        block = set()
 
     # try common shapes
     phone = None
@@ -102,16 +148,21 @@ def inbound():
     phone = phone or payload.get('from') or payload.get('phone') or payload.get('sender')
     text = text or payload.get('text') or payload.get('message') or payload.get('body') or payload.get('content')
 
-    # normalize phone (remove spaces)
+    # normalize phone (remove spaces) and digits for checks
     if isinstance(phone, str):
         phone = phone.strip()
+    phone_digits = ''.join(ch for ch in (phone or '') if ch.isdigit())
 
     if not phone or not text:
         return jsonify({"ok": False, "error": "missing phone or text", "payload": payload}), 400
 
+    # drop immediately if phone is blocked
+    if block and phone_digits in block:
+        return jsonify({"ok": True, "ignored": "blocked_phone"}), 200
+
     log.info("inbound message from %s: %s", phone, text)
 
-    # Anti-spam window: ignore duplicate (same phone+text) within few seconds
+    # Anti-spam and echo suppression
     try:
         now = int(time.time())
         # provider echo suppression by message id
@@ -120,17 +171,23 @@ def inbound():
             if last_id == msg_id:
                 return jsonify({"ok": True, "ignored": "echo_msgid"}), 200
             _SEEN_MSG_IDS[phone] = msg_id
+
         # provider echo suppression by matching last outbound text within TTL
         try:
-            echo_ttl = int(os.getenv('ECHO_SUPPRESS_SECONDS', '45'))
+            echo_ttl = int(os.getenv('ECHO_SUPPRESS_SECONDS', '120'))
         except Exception:
-            echo_ttl = 45
+            echo_ttl = 120
         if echo_ttl > 0:
             last_out = get_last_outbound(phone)
-            if last_out and last_out.get('text') == text and (now - int(last_out.get('ts') or 0)) < echo_ttl:
-                return jsonify({"ok": True, "ignored": "echo_match_outbound"}), 200
+            if last_out:
+                last_text_norm = _normalize_text(last_out.get('text') or '')
+                cur_text_norm = _normalize_text(text)
+                if last_text_norm and last_text_norm == cur_text_norm and (now - int(last_out.get('ts') or 0)) < echo_ttl:
+                    return jsonify({"ok": True, "ignored": "echo_match_outbound"}), 200
+
+        # Anti-spam window: ignore duplicate (same phone+text) within seconds
         last = _LAST_SEEN.get(phone)
-        if last and last.get('text') == text and (now - int(last.get('ts', 0))) < SPAM_GUARD_SECONDS:
+        if last and _normalize_text(last.get('text') or '') == _normalize_text(text) and (now - int(last.get('ts', 0))) < SPAM_GUARD_SECONDS:
             return jsonify({"ok": True, "ignored": "duplicate_window"}), 200
         _LAST_SEEN[phone] = {"text": text, "ts": now}
     except Exception:
@@ -194,14 +251,18 @@ def inbound():
                                 except Exception:
                                     log.exception("failed to send question to %s", phone)
                             break
-                    # also try to send a friendly greeting via the model if available (can be disabled)
-                    if os.getenv('DISABLE_GREETING','0') != '1' and generate_greeting_and_action and not sent_any:
+                    # also try to send a friendly greeting via the model (at most once per phone)
+                    if os.getenv('DISABLE_GREETING','0') != '1' and generate_greeting_and_action and not sent_any and not get_greeting_sent(phone):
                         try:
                             ga = generate_greeting_and_action(text, first_contact=first_contact)
                             if isinstance(ga, dict) and ga.get('greeting'):
                                 try:
                                     log.info("sending model greeting to %s: %s", phone, ga.get('greeting'))
                                     send_text(phone, ga.get('greeting'))
+                                    try:
+                                        mark_greeting_sent(phone)
+                                    except Exception:
+                                        pass
                                 except Exception:
                                     log.exception("failed to send greeting to %s", phone)
                         except Exception:
@@ -286,14 +347,18 @@ def inbound():
                         except Exception:
                             log.exception("failed to send question to %s", phone)
                     break
-            # model-based greeting as optional nicety (can be disabled)
-            if os.getenv('DISABLE_GREETING','0') != '1' and generate_greeting_and_action and not sent_any:
+            # model-based greeting as optional nicety (at most once per phone)
+            if os.getenv('DISABLE_GREETING','0') != '1' and generate_greeting_and_action and not sent_any and not get_greeting_sent(phone):
                 try:
                     ga = generate_greeting_and_action(text, first_contact=first_contact)
                     if isinstance(ga, dict) and ga.get('greeting'):
                         try:
                             log.info("sending model greeting to %s: %s", phone, ga.get('greeting'))
                             send_text(phone, ga.get('greeting'))
+                            try:
+                                mark_greeting_sent(phone)
+                            except Exception:
+                                pass
                         except Exception:
                             log.exception("failed to send greeting to %s", phone)
                 except Exception:
@@ -447,13 +512,17 @@ def handle_webhook(payload: dict) -> dict:
                                 except Exception:
                                     log.exception("handle_webhook failed to send question to %s", phone)
                             break
-                    # model greeting optional
-                    if os.getenv('DISABLE_GREETING','0') != '1' and generate_greeting_and_action and not sent_any:
+                    # model greeting optional (at most once)
+                    if os.getenv('DISABLE_GREETING','0') != '1' and generate_greeting_and_action and not sent_any and not get_greeting_sent(phone):
                         try:
                             ga = generate_greeting_and_action(text)
                             if isinstance(ga, dict) and ga.get('greeting'):
                                 try:
                                     send_text(phone, ga.get('greeting'))
+                                    try:
+                                        mark_greeting_sent(phone)
+                                    except Exception:
+                                        pass
                                 except Exception:
                                     pass
                         except Exception:
