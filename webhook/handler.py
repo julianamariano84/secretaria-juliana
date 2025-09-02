@@ -1,6 +1,7 @@
 ﻿from flask import Blueprint, jsonify, request
 import os
 import logging
+import time
 from .registrations import append_response, get_pending, create_pending
 from .registrations import apply_answers, mark_payment_confirmed, set_scheduling_status
 
@@ -33,6 +34,13 @@ if send_text is None:
 
 bp = Blueprint("webhook", __name__, url_prefix="/webhook")
 
+# Anti-loop/anti-spam guards
+# - IGNORE_FROM_ME: ignora callbacks de mensagens enviadas pela própria instância
+# - SPAM_GUARD_SECONDS: janela curta para evitar múltiplas respostas ao mesmo texto
+IGNORE_FROM_ME = os.getenv('IGNORE_FROM_ME', '1') == '1'
+SPAM_GUARD_SECONDS = int(os.getenv('SPAM_GUARD_SECONDS', '10'))
+_LAST_SEEN = {}
+
 
 @bp.route("/ping", methods=["GET"])
 def ping():
@@ -58,6 +66,18 @@ def inbound():
 
     payload = request.get_json(silent=True) or {}
 
+    # Ignore messages that were sent by ourselves when provider flags them
+    try:
+        from_me = False
+        if isinstance(payload.get('message'), dict):
+            m = payload['message']
+            from_me = bool(m.get('fromMe') or m.get('from_me'))
+        from_me = from_me or bool(payload.get('fromMe') or payload.get('from_me'))
+        if IGNORE_FROM_ME and from_me:
+            return jsonify({"ok": True, "ignored": "fromMe"}), 200
+    except Exception:
+        pass
+
     # try common shapes
     phone = None
     text = None
@@ -81,6 +101,16 @@ def inbound():
 
     log.info("inbound message from %s: %s", phone, text)
 
+    # Anti-spam window: ignore duplicate (same phone+text) within few seconds
+    try:
+        now = int(time.time())
+        last = _LAST_SEEN.get(phone)
+        if last and last.get('text') == text and (now - int(last.get('ts', 0))) < SPAM_GUARD_SECONDS:
+            return jsonify({"ok": True, "ignored": "duplicate_window"}), 200
+        _LAST_SEEN[phone] = {"text": text, "ts": now}
+    except Exception:
+        pass
+
     # detect if this is the first contact from this phone
     existing = get_pending(phone)
     first_contact = existing is None
@@ -102,6 +132,7 @@ def inbound():
             # Prefer asking the next missing question from the pending record
             try:
                 if rec:
+                    sent_any = False
                     # determine next unanswered question
                     for q in rec.get('questions', []):
                         if q not in rec.get('answers', {}):
@@ -123,11 +154,12 @@ def inbound():
                                 try:
                                     log.info("sending question to %s: %s", phone, question)
                                     send_text(phone, question)
+                                    sent_any = True
                                 except Exception:
                                     log.exception("failed to send question to %s", phone)
                             break
                     # also try to send a friendly greeting via the model if available
-                    if generate_greeting_and_action:
+                    if generate_greeting_and_action and not sent_any:
                         try:
                             ga = generate_greeting_and_action(text, first_contact=first_contact)
                             if isinstance(ga, dict) and ga.get('greeting'):
@@ -185,6 +217,7 @@ def inbound():
     # generate and send greeting + next action when possible
     try:
         if rec:
+            sent_any = False
             # prefer asking the next unanswered question
             for q in rec.get('questions', []):
                 if q not in rec.get('answers', {}):
@@ -205,11 +238,12 @@ def inbound():
                         try:
                             log.info("sending question to %s: %s", phone, question)
                             send_text(phone, question)
+                            sent_any = True
                         except Exception:
                             log.exception("failed to send question to %s", phone)
                     break
             # model-based greeting as optional nicety
-            if generate_greeting_and_action:
+            if generate_greeting_and_action and not sent_any:
                 try:
                     ga = generate_greeting_and_action(text, first_contact=first_contact)
                     if isinstance(ga, dict) and ga.get('greeting'):
@@ -294,6 +328,17 @@ def handle_webhook(payload: dict) -> dict:
         if isinstance(phone, str):
             phone = phone.strip()
         if phone and text:
+            # Ignore self-sent messages if provider flags them
+            try:
+                from_me = False
+                if isinstance(payload.get('message'), dict):
+                    m = payload['message']
+                    from_me = bool(m.get('fromMe') or m.get('from_me'))
+                from_me = from_me or bool(payload.get('fromMe') or payload.get('from_me'))
+                if IGNORE_FROM_ME and from_me:
+                    return {"note": "ignored fromMe"}
+            except Exception:
+                pass
             # reuse the append + greeting logic from inbound
             rec = append_response(phone, text)
 
@@ -313,6 +358,7 @@ def handle_webhook(payload: dict) -> dict:
             # send next question/greeting like inbound
             try:
                 if rec:
+                    sent_any = False
                     # prefer asking next unanswered
                     for q in rec.get('questions', []):
                         if q not in rec.get('answers', {}):
@@ -333,11 +379,12 @@ def handle_webhook(payload: dict) -> dict:
                                 try:
                                     log.info("handle_webhook sending question to %s: %s", phone, question)
                                     send_text(phone, question)
+                                    sent_any = True
                                 except Exception:
                                     log.exception("handle_webhook failed to send question to %s", phone)
                             break
                     # model greeting optional
-                    if generate_greeting_and_action:
+                    if generate_greeting_and_action and not sent_any:
                         try:
                             ga = generate_greeting_and_action(text)
                             if isinstance(ga, dict) and ga.get('greeting'):
