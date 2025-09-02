@@ -3,6 +3,10 @@
 Configurações esperadas no ambiente (.env):
 
 Se as variáveis não estiverem presentes, o módulo cai em um stub local para desenvolvimento.
+
+Observação: quando `CLIENT_TOKEN` estiver configurado, o sender prefere enviar esse valor
+no cabeçalho HTTP `Client-Token` junto com o payload {"phone","message"}, pois alguns
+endpoints Z-API exigem esse cabeçalho.
 """
 """Envio de mensagens via Z-API com fallback stub.
 
@@ -66,150 +70,84 @@ def send_text(phone: str, message: str) -> dict:
     if not local_zapi_url or not local_zapi_token:
         raise RuntimeError("Z-API parcialmente configurada: defina ZAPI_URL e ZAP_TOKEN (ou ZAPI_TOKEN) no .env")
 
-    # Many Z-API instances expect a simple payload with 'message'
-    # Try several payload formats because different Z-API instances accept
-    # different shapes (observed: "phone", "to", "+5511...", "5511...@c.us").
-    headers = {"Authorization": f"Bearer {local_zapi_token}", "Content-Type": "application/json"}
-    if local_client_token:
-        headers["Client-Token"] = local_client_token
-
-    # Prefer /send-message endpoint when possible (some instances accept this and not /send-text)
-    # Allow override via env ZAPI_PREFERRED_ENDPOINT: 'send-message' or 'send-text'
-    # Normalize configured URL: force canonical /send-text and strip anything after it
+    # Simplified: single proven request variant only.
+    # Build canonical URL ending with /send-text
     preferred = os.getenv('ZAPI_PREFERRED_ENDPOINT')
     if local_zapi_url:
-        # If the configured URL contains '/send-text' anywhere, cut everything after it
         if '/send-text' in local_zapi_url:
             idx = local_zapi_url.find('/send-text')
             local_zapi_url = local_zapi_url[: idx + len('/send-text')]
         elif '/send-message' in local_zapi_url and preferred == 'send-text':
-            # if user explicitly prefers send-text, convert send-message -> send-text
             idx = local_zapi_url.find('/send-message')
             local_zapi_url = local_zapi_url[: idx] + '/send-text'
         else:
-            # ensure it ends with /send-text
             local_zapi_url = local_zapi_url.rstrip('/') + '/send-text'
 
-    # Fast mode: if enabled, only try the proven fast payload and fail fast
-    ZAPI_FAST = os.getenv('ZAPI_FAST') == '1'
-
-    payload_variants = [
-        {"phone": phone, "message": message},
-        {"to": phone, "message": message},
-        {"to": f"+{phone}", "message": message},
-        {"to": f"{phone}@c.us", "message": message},
-        {"to": phone, "type": "text", "text": {"body": message}},
-    ]
-    errors = []
-
-    # Fast path: try the proven variant first (phone + message).
-    first_payload = {"phone": phone, "message": message}
-    debug = os.getenv('DEBUG_ZAPI') == '1'
+    # If the configured URL embeds a token path segment like /token/<TOKEN>/...,
+    # ensure it matches ZAP_TOKEN if that env var is set. This avoids a common
+    # misconfiguration where the URL token and the env token differ causing
+    # 'Instance not found' responses from Z-API.
     try:
-        if debug:
-            log.debug('DEBUG_ZAPI: URL=%s', str(local_zapi_url))
-            log.debug('DEBUG_ZAPI: HEADERS=%s', json.dumps(headers, ensure_ascii=False))
-            log.debug('DEBUG_ZAPI: PAYLOAD=%s', json.dumps(first_payload, ensure_ascii=False))
+        if '/token/' in local_zapi_url:
+            # extract the token portion after '/token/' until next '/'
+            token_part = local_zapi_url.split('/token/', 1)[1]
+            token_in_url = token_part.split('/', 1)[0] if token_part else ''
+            if token_in_url and local_zapi_token and token_in_url != local_zapi_token:
+                raise RuntimeError(
+                    f"Z-API token mismatch: token embedded in ZAPI_URL ('{token_in_url}') "
+                    f"does not match ZAP_TOKEN ('{local_zapi_token}'). Remove token from the URL or fix the env var."
+                )
+    except RuntimeError:
+        raise
+    except Exception:
+        # If parsing fails for any reason, don't mask the original problem;
+        # continue and let the request/response provide details.
+        pass
 
-        # Always post to the canonical local_zapi_url (which was normalized above).
-        # If the configured URL includes a token path segment, avoid sending duplicate
-        # auth headers by using a lean headers set.
-        token_in_path = '/token/' in str(local_zapi_url)
-        headers_fast = {'Content-Type': 'application/json'} if token_in_path else headers
-        resp = requests.post(local_zapi_url, json=first_payload, headers=headers_fast, timeout=15)
+    # Single payload: phone + message
+    payload = {"phone": phone, "message": message}
 
-        if resp.ok:
-            # Some Z-API instances return HTTP 200 but include an error object in JSON
-            try:
-                resp_json = resp.json()
-            except Exception:
-                resp_json = None
+    # Build headers: prefer Client-Token header when present (proven working variant)
+    headers_out = {"Content-Type": "application/json"}
+    # If CLIENT_TOKEN is configured, always send it as Client-Token header (proved working).
+    if local_client_token:
+        headers_out["Client-Token"] = local_client_token
+    else:
+        # fallback to Authorization header only when client token isn't present
+        headers_out["Authorization"] = f"Bearer {local_zapi_token}"
 
-            if resp_json and isinstance(resp_json, dict) and resp_json.get('error'):
-                # treat as failure and continue to next variant
-                # record clear diagnostics (status, attempted url, and body text)
-                try:
-                    status_code = getattr(resp, 'status_code', 'N/A')
-                    body_text = json.dumps(resp_json, ensure_ascii=False)
-                except Exception:
-                    status_code = getattr(resp, 'status_code', 'N/A')
-                    body_text = getattr(resp, 'text', '')
-
-                attempted_url = None
-                try:
-                    attempted_url = resp.request.url if hasattr(resp, 'request') and getattr(resp.request, 'url', None) else None
-                except Exception:
-                    attempted_url = None
-
-                errors.append(f"payload[fast] status={status_code} url={attempted_url} body={body_text}")
-                if debug:
-                    log.debug('DEBUG_ZAPI: RESPONSE_STATUS=%s', str(status_code))
-                    log.debug('DEBUG_ZAPI: RESPONSE_TEXT=%s', body_text)
-                # continue to next payload variant instead of returning
-            else:
-                try:
-                    if debug:
-                        log.debug('DEBUG_ZAPI: RESPONSE_STATUS=%s', str(getattr(resp, 'status_code', 'N/A')))
-                        log.debug('DEBUG_ZAPI: RESPONSE_JSON=%s', json.dumps(resp_json if resp_json is not None else {}, ensure_ascii=False))
-                    return resp_json if resp_json is not None else {"status": "ok", "raw": getattr(resp, 'text', '')}
-                except Exception:
-                    if debug:
-                        log.debug('DEBUG_ZAPI: RESPONSE_TEXT=%s', getattr(resp, 'text', ''))
-                    return {"status": "ok", "raw": getattr(resp, 'text', '')}
-
-        # record non-ok response for diagnostics and proceed to fallback
-        errors.append(f"payload[fast] status={getattr(resp, 'status_code', 'N/A')} body={getattr(resp, 'text', '')}")
-        if debug:
-            log.debug('DEBUG_ZAPI: RESPONSE_STATUS=%s', str(getattr(resp, 'status_code', 'N/A')))
-            log.debug('DEBUG_ZAPI: RESPONSE_TEXT=%s', getattr(resp, 'text', ''))
-
+    try:
+        resp = requests.post(local_zapi_url, json=payload, headers=headers_out, timeout=15)
     except Exception as e:
-        errors.append(f"payload[fast] request error: {e}")
-        if debug:
-            log.exception('payload[fast] request error')
+        raise RuntimeError(f"Z-API request failed: {e}")
 
-    # If fast mode is enabled, fail fast with the diagnostics we collected
-    if ZAPI_FAST:
-        raise RuntimeError("Z-API send failed (fast mode); attempts:\n" + "\n".join(errors))
-
-    # Fallback: try remaining payload variants in order, always to the canonical URL
-    for idx, payload in enumerate(payload_variants[1:], 2):
-        log.debug("Z-API try %d payload: %s", idx, payload)
-        debug = os.getenv('DEBUG_ZAPI') == '1'
-        if debug:
-            log.debug('DEBUG_ZAPI: URL=%s', str(local_zapi_url))
-            log.debug('DEBUG_ZAPI: HEADERS=%s', json.dumps(headers, ensure_ascii=False))
-            log.debug('DEBUG_ZAPI: PAYLOAD=%s', json.dumps(payload, ensure_ascii=False))
-
+    # Interpret response: 2xx -> try to return parsed JSON, else raise with body
+    if 200 <= getattr(resp, 'status_code', 0) < 300:
         try:
-            resp = requests.post(local_zapi_url, json=payload, headers=headers, timeout=15)
-        except Exception as e:
-            errors.append(f"payload[{idx}] request error: {e}")
-            if debug:
-                log.exception('payload[%s] request error', idx)
-            continue
+            return resp.json()
+        except Exception:
+            return {"status": "ok", "raw": getattr(resp, 'text', '')}
 
-        if resp.ok:
-            try:
-                if debug:
-                    log.debug('DEBUG_ZAPI: RESPONSE_STATUS=%s', str(getattr(resp, 'status_code', 'N/A')))
-                    log.debug('DEBUG_ZAPI: RESPONSE_JSON=%s', json.dumps(resp.json(), ensure_ascii=False))
-                return resp.json()
-            except Exception:
-                if debug:
-                    log.debug('DEBUG_ZAPI: RESPONSE_TEXT=%s', getattr(resp, 'text', ''))
-                return {"status": "ok", "raw": getattr(resp, 'text', '')}
+    # Non-2xx -> try to surface useful error info
+    body = None
+    try:
+        body = resp.json()
+    except Exception:
+        body = getattr(resp, 'text', '')
 
-        errors.append(f"payload[{idx}] status={getattr(resp, 'status_code', 'N/A')} body={getattr(resp, 'text', '')}")
-        if debug:
-            log.debug('DEBUG_ZAPI: RESPONSE_STATUS=%s', str(getattr(resp, 'status_code', 'N/A')))
-            log.debug('DEBUG_ZAPI: RESPONSE_TEXT=%s', getattr(resp, 'text', ''))
+    # Helpful, specific error for a common misconfiguration
+    try:
+        if (isinstance(body, dict) and body.get('error') == 'Instance not found') or (
+            isinstance(body, str) and 'Instance not found' in body
+        ):
+            raise RuntimeError(
+                "Z-API instance not found (404). Check your ZAPI_URL and ZAP_TOKEN for typos or expired token; "
+                "also verify CLIENT_TOKEN if your instance requires it. Response body: " + str(body)
+            )
+    except RuntimeError:
+        raise
+    except Exception:
+        # fall through to generic error below on unexpected shape
+        pass
 
-    # If we reached here, none of the variants succeeded
-    # Note: we intentionally do NOT try alternate URLs or mutate the configured URL further.
-    # The integration must post only to the canonical /send-text address the user requested.
-    alt_errors = []
-
-    # Combine diagnostics and raise
-    all_err = errors + alt_errors
-    raise RuntimeError("Z-API send failed; attempts:\n" + "\n".join(all_err))
+    raise RuntimeError(f"Z-API send failed status={getattr(resp,'status_code','N/A')} body={body}")
