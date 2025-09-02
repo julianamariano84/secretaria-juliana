@@ -75,15 +75,20 @@ def send_text(phone: str, message: str) -> dict:
 
     # Prefer /send-message endpoint when possible (some instances accept this and not /send-text)
     # Allow override via env ZAPI_PREFERRED_ENDPOINT: 'send-message' or 'send-text'
+    # Normalize configured URL: force canonical /send-text and strip anything after it
     preferred = os.getenv('ZAPI_PREFERRED_ENDPOINT')
-    send_message_url = None
     if local_zapi_url:
-        # If ZAPI_URL already points to a specific endpoint, keep it; otherwise try to construct
-        if local_zapi_url.endswith('/send-text') or local_zapi_url.endswith('/send-message'):
-            send_message_url = local_zapi_url.replace('/send-text', '/send-message')
+        # If the configured URL contains '/send-text' anywhere, cut everything after it
+        if '/send-text' in local_zapi_url:
+            idx = local_zapi_url.find('/send-text')
+            local_zapi_url = local_zapi_url[: idx + len('/send-text')]
+        elif '/send-message' in local_zapi_url and preferred == 'send-text':
+            # if user explicitly prefers send-text, convert send-message -> send-text
+            idx = local_zapi_url.find('/send-message')
+            local_zapi_url = local_zapi_url[: idx] + '/send-text'
         else:
-            # assume base URL like https://api.z-api.io/instances/<id>/token/<token>
-            send_message_url = local_zapi_url.rstrip('/') + '/send-message'
+            # ensure it ends with /send-text
+            local_zapi_url = local_zapi_url.rstrip('/') + '/send-text'
 
     # Fast mode: if enabled, only try the proven fast payload and fail fast
     ZAPI_FAST = os.getenv('ZAPI_FAST') == '1'
@@ -106,28 +111,12 @@ def send_text(phone: str, message: str) -> dict:
             log.debug('DEBUG_ZAPI: HEADERS=%s', json.dumps(headers, ensure_ascii=False))
             log.debug('DEBUG_ZAPI: PAYLOAD=%s', json.dumps(first_payload, ensure_ascii=False))
 
-        # If the configured URL includes a token path segment, prefer using the token-in-path
-        # variant first and avoid sending other auth headers (some instances expect only the
-        # token embedded in the URL). Otherwise use the normal headers.
-        tried_urls = []
+        # Always post to the canonical local_zapi_url (which was normalized above).
+        # If the configured URL includes a token path segment, avoid sending duplicate
+        # auth headers by using a lean headers set.
         token_in_path = '/token/' in str(local_zapi_url)
-        # prepare a lean header set for token-in-path attempts to avoid conflicting auth
-        if token_in_path:
-            headers_fast = {'Content-Type': 'application/json'}
-        else:
-            headers_fast = headers
-
-        # prefer trying the URL that contains the token first (local_zapi_url), then try
-        # the /send-message variant as fallback. This favors token-in-path + phone/message.
-        if send_message_url:
-            tried_urls.append(local_zapi_url)
-            resp = requests.post(local_zapi_url, json=first_payload, headers=headers_fast, timeout=15)
-            if not resp.ok:
-                tried_urls.append(send_message_url)
-                # when falling back to send_message_url, restore full headers
-                resp = requests.post(send_message_url, json=first_payload, headers=headers, timeout=15)
-        else:
-            resp = requests.post(local_zapi_url, json=first_payload, headers=headers_fast, timeout=15)
+        headers_fast = {'Content-Type': 'application/json'} if token_in_path else headers
+        resp = requests.post(local_zapi_url, json=first_payload, headers=headers_fast, timeout=15)
 
         if resp.ok:
             # Some Z-API instances return HTTP 200 but include an error object in JSON
@@ -183,7 +172,7 @@ def send_text(phone: str, message: str) -> dict:
     if ZAPI_FAST:
         raise RuntimeError("Z-API send failed (fast mode); attempts:\n" + "\n".join(errors))
 
-    # Fallback: try remaining payload variants in order
+    # Fallback: try remaining payload variants in order, always to the canonical URL
     for idx, payload in enumerate(payload_variants[1:], 2):
         log.debug("Z-API try %d payload: %s", idx, payload)
         debug = os.getenv('DEBUG_ZAPI') == '1'
@@ -217,82 +206,9 @@ def send_text(phone: str, message: str) -> dict:
             log.debug('DEBUG_ZAPI: RESPONSE_TEXT=%s', getattr(resp, 'text', ''))
 
     # If we reached here, none of the variants succeeded
-    # Extra attempts: some Z-API instances expose slightly different paths or expect different payloads.
-    # If the provider returned NOT_FOUND we try alternate URLs and payload shapes to be resilient.
-    debug = os.getenv('DEBUG_ZAPI') == '1'
+    # Note: we intentionally do NOT try alternate URLs or mutate the configured URL further.
+    # The integration must post only to the canonical /send-text address the user requested.
     alt_errors = []
-
-    try:
-        # build alternate URLs
-        alt_urls = []
-        if local_zapi_url:
-            # swap send-text <-> send-message
-            alt_urls.append(local_zapi_url.replace('/send-text', '/send-message'))
-            alt_urls.append(local_zapi_url.replace('/send-message', '/send-text'))
-            # try removing /token/<token> segment (some instances accept token via header)
-            import re
-            alt_no_token = re.sub(r'/token/[^/]+', '', local_zapi_url)
-            alt_no_token = alt_no_token.rstrip('/')
-            alt_urls.append(alt_no_token + '/send-text')
-            alt_urls.append(alt_no_token + '/send-message')
-
-        # additional payload shapes to try when NOT_FOUND occurs
-        extra_payloads = [
-            {"to": phone, "message": message},
-            {"to": f"{phone}@c.us", "message": message},
-            {"to": phone, "type": "text", "text": {"body": message}},
-            {"chatId": phone, "body": message},
-            {"number": phone, "message": message},
-        ]
-
-        for u in alt_urls:
-            for pidx, p in enumerate(extra_payloads, 1):
-                if debug:
-                    log.debug('DEBUG_ZAPI: ALT TRY URL=%s PAYLOAD=%s', u, json.dumps(p, ensure_ascii=False))
-                try:
-                    # try without client-token header first
-                    h = headers.copy()
-                    if 'Client-Token' in h:
-                        del h['Client-Token']
-                    resp = requests.post(u, json=p, headers=h, timeout=15)
-                except Exception as e:
-                    alt_errors.append(f"alt request error {u} payload#{pidx}: {e}")
-                    if debug:
-                        log.exception('alt request error')
-                    continue
-
-                try:
-                    body_text = getattr(resp, 'text', '')
-                    status = getattr(resp, 'status_code', 'N/A')
-                    if debug:
-                        log.debug('DEBUG_ZAPI: ALT RESPONSE_STATUS=%s', str(status))
-                        log.debug('DEBUG_ZAPI: ALT RESPONSE_TEXT=%s', body_text)
-                    # if provider returns JSON accepted result, return it
-                    if resp.ok:
-                        # check for JSON error payload even when HTTP 200
-                        try:
-                            alt_json = resp.json()
-                        except Exception:
-                            alt_json = None
-
-                        if alt_json and isinstance(alt_json, dict) and alt_json.get('error'):
-                            alt_errors.append(f"alt[{u}] provider_error={alt_json.get('error')} message={alt_json.get('message')}")
-                            if debug:
-                                log.debug('DEBUG_ZAPI: ALT RESPONSE_JSON=%s', json.dumps(alt_json, ensure_ascii=False))
-                            # continue to next alt
-                        else:
-                            try:
-                                return alt_json if alt_json is not None else {"status": "ok", "raw": body_text}
-                            except Exception:
-                                return {"status": "ok", "raw": body_text}
-                    # otherwise record and continue
-                    alt_errors.append(f"alt[{u}] status={status} body={body_text}")
-                except Exception:
-                    alt_errors.append(f"alt[{u}] unkfail")
-
-    except Exception:
-        if debug:
-            log.exception('extra alt attempts failed')
 
     # Combine diagnostics and raise
     all_err = errors + alt_errors

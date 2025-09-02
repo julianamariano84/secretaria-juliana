@@ -1,11 +1,11 @@
 import importlib, traceback
 
 try:
-    m = importlib.import_module('app')
+    m = importlib.import_module('messaging.sender')
     print('MODULE IMPORTED')
-    print('has attribute app:', hasattr(m, 'app'))
-    a = getattr(m, 'app', None)
-    print('app repr:', repr(a))
+    print('module file:', getattr(m, '__file__', 'n/a'))
+    print('has send_text:', hasattr(m, 'send_text'))
+    print('send_text callable:', callable(getattr(m, 'send_text', None)))
 except Exception:
     print('IMPORT ERROR:')
     traceback.print_exc()
