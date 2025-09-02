@@ -13,7 +13,7 @@ Set-Location 'C:\Users\mario\OneDrive\Documentos\secretaria_juliana'
 2) Rode este comando (substitua os valores se quiser usar outros tokens):
 
 ```powershell
-$env:DEBUG_ZAPI='1'; $env:ZAPI_URL='https://api.z-api.io/instances/3E68FAC9BEFB716A85B5B24F68547F08/token/6ED2B6C9FBB305ACA45EF6ED/send-text'; $env:ZAP_TOKEN='6ED2B6C9FBB305ACA45EF6ED'; $env:CLIENT_TOKEN='F3c15e38a9d7443309983ea194d18900cS'; & 'C:\Users\mario\AppData\Local\Programs\Python\Python313\python.exe' -c "from messaging import sender; print(sender.send_text('5511999999999','teste exec debug'))" 2>&1 | Tee-Object zapi_debug_output.txt
+$env:DEBUG_ZAPI='1'; $env:ZAPI_URL='https://api.z-api.io/instances/3E68FAC9BEFB716A85B5B24F68547F08/token/6ED2B6C9FBB305ACA45EF6ED/send-text'; $env:ZAP_TOKEN='6ED2B6C9FBB305ACA45EF6ED'; $env:CLIENT_TOKEN='F46fd6dff25a346d79a7c0a869e97f975S'; & 'C:\Users\mario\AppData\Local\Programs\Python\Python313\python.exe' -c "from messaging import sender; print(sender.send_text('5511999999999','teste exec debug'))" 2>&1 | Tee-Object zapi_debug_output.txt
 ```
 
 - Explicação rápida:
@@ -25,7 +25,7 @@ $env:DEBUG_ZAPI='1'; $env:ZAPI_URL='https://api.z-api.io/instances/3E68FAC9BEFB7
 Se preferir um POST direto (sem passar pelo código do projeto), use este comando único (vai mostrar URL/headers/payload e resposta):
 
 ```powershell
-$env:ZAP_TOKEN='6ED2B6C9FBB305ACA45EF6ED'; $env:CLIENT_TOKEN='F3c15e38a9d7443309983ea194d18900cS'; & 'C:\Users\mario\AppData\Local\Programs\Python\Python313\python.exe' - <<'PY'
+$env:ZAP_TOKEN='6ED2B6C9FBB305ACA45EF6ED'; $env:CLIENT_TOKEN='F46fd6dff25a346d79a7c0a869e97f975S'; & 'C:\Users\mario\AppData\Local\Programs\Python\Python313\python.exe' - <<'PY'
 import os,json,requests,sys
 ZAPI_URL='https://api.z-api.io/instances/3E68FAC9BEFB716A85B5B24F68547F08/token/6ED2B6C9FBB305ACA45EF6ED/send-text'
 headers={'Authorization':f"Bearer {os.getenv('ZAP_TOKEN')}",'Content-Type':'application/json','Client-Token':os.getenv('CLIENT_TOKEN')}

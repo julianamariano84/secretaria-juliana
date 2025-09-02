@@ -5,7 +5,7 @@ import json, requests
 url = 'https://api.z-api.io/instances/3E68FAC9BEFB716A85B5B24F68547F08/token/6ED2B6C9FBB305ACA45EF6ED/send-text'
 print('SCRIPT START')
 # Client token provided by user (trying as client token)
-client_token = '3E68FAC9BEFB716A85B5B24F68547F08'
+client_token = 'F46fd6dff25a346d79a7c0a869e97f975S'
 phone = '5511999999999'
 
 attempts = []

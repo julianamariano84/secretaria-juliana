@@ -5,7 +5,7 @@ load_dotenv()
 
 ZAPI_URL = os.getenv('ZAPI_URL') or 'https://api.z-api.io/instances/3E68FAC9BEFB716A85B5B24F68547F08/token/6ED2B6C9FBB305ACA45EF6ED/send-text'
 instance_token = os.getenv('ZAP_TOKEN') or '6ED2B6C9FBB305ACA45EF6ED'
-client_token = os.getenv('CLIENT_TOKEN') or 'F3c15e38a9d7443309983ea194d18900cS'
+client_token = os.getenv('CLIENT_TOKEN') or 'F46fd6dff25a346d79a7c0a869e97f975S'
 
 headers = {
     'Authorization': f'Bearer {instance_token}',

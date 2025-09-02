@@ -1,11 +1,13 @@
 ﻿from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
 from typing import Dict, Any, Optional
+import logging
 
-# ...existing code...
+log = logging.getLogger(__name__)
+
 
 def _job():
-    print(f"[{datetime.utcnow().isoformat()}] Scheduler heartbeat")
+    log.debug("Scheduler heartbeat at %s", datetime.utcnow().isoformat())
 
 def init_scheduler(app=None):
     sched = BackgroundScheduler()
@@ -19,7 +21,7 @@ def init_scheduler(app=None):
 
 def schedule_consultation(data: dict) -> dict:
     # Minimal stub: in production persist to DB and schedule reminders
-    print(f"[stub] Scheduling consultation: {data}")
+    log.info("[stub] Scheduling consultation: %s", data)
     return {"scheduled": True, "data": data}
 
 

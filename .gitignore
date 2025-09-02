@@ -17,4 +17,6 @@ terapee_*.html
 
 # virtualenv
 .venv/
+.env.local
+.env.*
 

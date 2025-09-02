@@ -355,3 +355,46 @@ def handle_webhook(payload: dict) -> dict:
     except Exception:
         pass
     return {"note": "received", "payload": payload}
+
+
+@bp.route('/_env', methods=['GET'])
+def _debug_env():
+    """Secure debug endpoint (only when DEBUG_ZAPI=1).
+
+    Requires header 'X-Debug-Token' to match env var DEBUG_TOKEN. Returns masked
+    values for ZAPI_URL, ZAP_TOKEN and CLIENT_TOKEN to help confirm deployed envs.
+    """
+    # only enabled when explicitly set
+    if os.getenv('DEBUG_ZAPI') != '1':
+        return jsonify({'ok': False, 'error': 'debug disabled'}), 404
+
+    expected = os.getenv('DEBUG_TOKEN')
+    provided = request.headers.get('X-Debug-Token') or request.args.get('token')
+    if not expected or provided != expected:
+        return jsonify({'ok': False, 'error': 'forbidden'}), 403
+
+    def mask(v: str):
+        if not v:
+            return None
+        s = str(v)
+        if len(s) <= 8:
+            return s[:2] + '***' + s[-2:]
+        return s[:4] + '...' + s[-4:]
+
+    zurl = os.getenv('ZAPI_URL')
+    ztoken = os.getenv('ZAP_TOKEN') or os.getenv('ZAPI_TOKEN')
+    client = os.getenv('CLIENT_TOKEN') or os.getenv('CLIENTTOKEN')
+    token_in_url = None
+    try:
+        if zurl and '/token/' in zurl:
+            token_in_url = zurl.split('/token/', 1)[1].split('/', 1)[0]
+    except Exception:
+        token_in_url = None
+
+    return jsonify({
+        'ok': True,
+        'ZAPI_URL': mask(zurl),
+        'ZAP_TOKEN': mask(ztoken),
+        'CLIENT_TOKEN': mask(client),
+        'token_in_url': mask(token_in_url),
+    })

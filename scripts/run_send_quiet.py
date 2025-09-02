@@ -13,7 +13,7 @@ os.environ['DEBUG_ZAPI'] = '1'
 # Use env values or defaults
 os.environ.setdefault('ZAPI_URL', 'https://api.z-api.io/instances/3E68FAC9BEFB716A85B5B24F68547F08/token/6ED2B6C9FBB305ACA45EF6ED/send-text')
 os.environ.setdefault('ZAP_TOKEN', '6ED2B6C9FBB305ACA45EF6ED')
-os.environ.setdefault('CLIENT_TOKEN', 'F3c15e38a9d7443309983ea194d18900cS')
+os.environ.setdefault('CLIENT_TOKEN', 'F46fd6dff25a346d79a7c0a869e97f975S')
 
 try:
     res = sender.send_text('5511999999999','teste exec quiet')

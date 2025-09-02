@@ -6,7 +6,7 @@ load_dotenv()
 instance_id = os.getenv('ZAPI_INSTANCE') or '3E68FAC9BEFB716A85B5B24F68547F08'
 instance_token = os.getenv('ZAP_TOKEN') or '6ED2B6C9FBB305ACA45EF6ED'
 # Using the client token user provided earlier
-client_token = 'F3c15e38a9d7443309983ea194d18900cS'
+client_token = 'F46fd6dff25a346d79a7c0a869e97f975S'
 url = f'https://api.z-api.io/instances/{instance_id}/token/{instance_token}/send-text'
 
 variants = [
