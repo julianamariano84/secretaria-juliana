@@ -17,6 +17,7 @@ Esperado no .env:
 import os
 import json
 import logging
+import re
 
 log = logging.getLogger(__name__)
 
@@ -119,10 +120,18 @@ def send_text(phone: str, message: str) -> dict:
             return v[:1] + '***' + v[-1:]
         return v[:3] + '***' + v[-3:]
 
+    # Normalize phone to digits only (Z-API expects international number without '+')
+    clean_phone = re.sub(r"\D", "", phone)
+    if os.getenv('DEBUG_ZAPI') == '1' and clean_phone != phone:
+        try:
+            log.debug("normalized phone: '%s' -> '%s'", phone, clean_phone)
+        except Exception:
+            pass
+
     # candidate payload forms
     payloads = [
-        {"phone": phone, "message": message},
-        {"to": phone, "text": message},
+        {"phone": clean_phone, "message": message},
+        {"to": clean_phone, "text": message},
     ]
 
     # candidate endpoint variants (prefer existing computed url, then try send-message)
