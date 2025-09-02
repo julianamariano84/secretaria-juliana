@@ -18,6 +18,7 @@ import os
 import json
 import logging
 import re
+import time
 
 log = logging.getLogger(__name__)
 
@@ -29,6 +30,21 @@ if os.getenv('DEBUG_ZAPI') == '1':
         h.setFormatter(logging.Formatter('%(levelname)s:%(name)s: %(message)s'))
         log.addHandler(h)
     log.setLevel(logging.DEBUG)
+
+# keep a small ring buffer of last attempts (masked) for secure debug endpoint
+_LAST_DEBUG = {
+    'ts': None,
+    'attempts': [],  # list of {url, headers, payload, status, body}
+}
+
+def get_last_debug():
+    try:
+        return {
+            'ts': _LAST_DEBUG.get('ts'),
+            'attempts': list(_LAST_DEBUG.get('attempts') or []),
+        }
+    except Exception:
+        return {'ts': None, 'attempts': []}
 
 try:
     import requests
@@ -120,6 +136,46 @@ def send_text(phone: str, message: str) -> dict:
             return v[:1] + '***' + v[-1:]
         return v[:3] + '***' + v[-3:]
 
+    def _mask_url(u: str) -> str:
+        try:
+            if '/token/' in u:
+                parts = u.split('/token/', 1)
+                token_part = parts[1]
+                token_val = token_part.split('/', 1)[0] if token_part else ''
+                rest = ''
+                if '/' in token_part:
+                    rest = '/' + token_part.split('/', 1)[1]
+                return parts[0] + '/token/' + (_mask_token(token_val) or '') + rest
+        except Exception:
+            pass
+        return u
+
+    def _record_attempt(u: str, h: dict, p: dict, status=None, body=None):
+        if os.getenv('DEBUG_ZAPI') != '1':
+            return
+        try:
+            masked_headers = {}
+            for k, v in (h or {}).items():
+                if k.lower() in ('authorization', 'client-token'):
+                    masked_headers[k] = _mask_token(v)
+                else:
+                    masked_headers[k] = v
+            entry = {
+                'url': _mask_url(u),
+                'headers': masked_headers,
+                'payload': p,
+                'status': status,
+                'body': body,
+            }
+            _LAST_DEBUG['ts'] = int(time.time())
+            attempts = _LAST_DEBUG.setdefault('attempts', [])
+            attempts.append(entry)
+            # keep only last 5
+            if len(attempts) > 5:
+                del attempts[:-5]
+        except Exception:
+            pass
+
     # Normalize phone to digits only (Z-API expects international number without '+')
     clean_phone = re.sub(r"\D", "", phone)
     if os.getenv('DEBUG_ZAPI') == '1' and clean_phone != phone:
@@ -165,18 +221,7 @@ def send_text(phone: str, message: str) -> dict:
                 # Debug masked logging
                 if os.getenv('DEBUG_ZAPI') == '1':
                     try:
-                        masked_url = u
-                        try:
-                            if '/token/' in masked_url:
-                                parts = masked_url.split('/token/', 1)
-                                token_part = parts[1]
-                                token_val = token_part.split('/', 1)[0] if token_part else ''
-                                rest = ''
-                                if '/' in token_part:
-                                    rest = '/' + token_part.split('/', 1)[1]
-                                masked_url = parts[0] + '/token/' + (_mask_token(token_val) or '') + rest
-                        except Exception:
-                            masked_url = '***'
+                        masked_url = _mask_url(u)
                         masked_headers = {}
                         for k, v in h.items():
                             if k.lower() in ('authorization', 'client-token'):
@@ -184,6 +229,7 @@ def send_text(phone: str, message: str) -> dict:
                             else:
                                 masked_headers[k] = v
                         log.debug("Z-API request -> attempt url=%s headers=%s payload=%s", masked_url, masked_headers, p)
+                        _record_attempt(u, h, p)
                     except Exception:
                         log.debug("Z-API request -> (unable to format debug info)")
 
@@ -192,6 +238,7 @@ def send_text(phone: str, message: str) -> dict:
                 except Exception as e:
                     last_err = e
                     log.debug("Z-API request exception for url=%s: %s", u, e)
+                    _record_attempt(u, h, p, status=None, body=str(e))
                     continue
 
                 last_resp = resp
@@ -205,6 +252,7 @@ def send_text(phone: str, message: str) -> dict:
                         log.debug("Z-API response -> status=%s body=%s", getattr(resp, 'status_code', None), resp_body)
                     except Exception:
                         log.debug("Z-API response -> (unable to format response)")
+                    _record_attempt(u, h, p, status=getattr(resp, 'status_code', None), body=resp_body)
 
                 # If 2xx -> return
                 if 200 <= getattr(resp, 'status_code', 0) < 300:

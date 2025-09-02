@@ -408,3 +408,20 @@ def _debug_env():
     'WEBHOOK_HEADER': wh_header,
         'token_in_url': mask(token_in_url),
     })
+
+
+@bp.route('/_last', methods=['GET'])
+def _debug_last():
+    # only enabled with DEBUG_ZAPI=1 and correct token
+    if os.getenv('DEBUG_ZAPI') != '1':
+        return jsonify({'ok': False, 'error': 'debug disabled'}), 404
+    expected = os.getenv('DEBUG_TOKEN')
+    provided = request.headers.get('X-Debug-Token') or request.args.get('token')
+    if not expected or provided != expected:
+        return jsonify({'ok': False, 'error': 'forbidden'}), 403
+    try:
+        from messaging.sender import get_last_debug
+        data = get_last_debug() or {}
+        return jsonify({'ok': True, **data})
+    except Exception:
+        return jsonify({'ok': False, 'error': 'unavailable'}), 500
