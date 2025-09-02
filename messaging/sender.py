@@ -55,6 +55,13 @@ try:
 except Exception:
     requests = None
 
+# Try importing cross-worker dedupe helpers; keep optional
+try:
+    from webhook.registrations import get_last_outbound, set_last_outbound
+except Exception:
+    get_last_outbound = None
+    set_last_outbound = None
+
 ZAPI_URL = os.getenv("ZAPI_URL")
 # Prefer the new env name ZAP_TOKEN, fall back to ZAPI_TOKEN for backward compat
 ZAPI_TOKEN = os.getenv("ZAP_TOKEN") or os.getenv("ZAPI_TOKEN")
@@ -86,7 +93,7 @@ def send_text(phone: str, message: str) -> dict:
 
     # In-process dedupe: skip if same phone+message was sent very recently
     try:
-        ttl = int(os.getenv('ZAPI_SEND_DEDUP_SECONDS', '30'))
+        ttl = int(os.getenv('ZAPI_SEND_DEDUP_SECONDS', '60'))
     except Exception:
         ttl = 30
     if ttl > 0 and isinstance(clean_phone, str) and isinstance(message, str):
@@ -128,9 +135,39 @@ def send_text(phone: str, message: str) -> dict:
         except Exception:
             pass
 
+    # Cross-worker dedupe: consult persisted last outbound; skip if identical within TTL
+    try:
+        ttl = int(os.getenv('ZAPI_SEND_DEDUP_SECONDS', '60'))
+    except Exception:
+        ttl = 30
+    if ttl > 0 and get_last_outbound and isinstance(clean_phone, str):
+        try:
+            last = get_last_outbound(clean_phone)
+            now = int(time.time())
+            if last and last.get('text') == message and (now - int(last.get('ts') or 0)) < ttl:
+                if os.getenv('DEBUG_ZAPI') == '1':
+                    try:
+                        log.debug("Z-API send skipped (persist dedupe %ss): to=%s message=%s", ttl, clean_phone, message)
+                        _LAST_DEBUG['ts'] = now
+                        attempts = _LAST_DEBUG.setdefault('attempts', [])
+                        attempts.append({'url': '(skipped-persist)', 'headers': {}, 'payload': {'phone': clean_phone, 'message': message}, 'status': 'SKIP', 'body': f'persist duplicate within {ttl}s'})
+                        if len(attempts) > 5:
+                            del attempts[:-5]
+                    except Exception:
+                        pass
+                return {"to": clean_phone, "message": message, "status": "skipped_persist_duplicate"}
+        except Exception:
+            pass
+
     # If no Z-API config (no URL and no auth at all), fallback to stub
     if not local_zapi_url and not local_zapi_token and not local_client_token:
-        return _stub_send(clean_phone or phone, message)
+        res = _stub_send(clean_phone or phone, message)
+        if set_last_outbound and isinstance(clean_phone, str):
+            try:
+                set_last_outbound(clean_phone, message)
+            except Exception:
+                pass
+        return res
 
     if requests is None:
         raise RuntimeError("Biblioteca 'requests' não está disponível. Instale com pip install requests")
@@ -308,9 +345,16 @@ def send_text(phone: str, message: str) -> dict:
                 # If 2xx -> return
                 if 200 <= getattr(resp, 'status_code', 0) < 300:
                     try:
-                        return resp.json()
+                        result = resp.json()
                     except Exception:
-                        return {"status": "ok", "raw": getattr(resp, 'text', '')}
+                        result = {"status": "ok", "raw": getattr(resp, 'text', '')}
+                    # persist last outbound for cross-worker dedupe
+                    if set_last_outbound and isinstance(clean_phone, str):
+                        try:
+                            set_last_outbound(clean_phone, message)
+                        except Exception:
+                            pass
+                    return result
 
                 # If provider clearly says instance not found, raise early (token/instance mismatch)
                 try:

@@ -22,8 +22,14 @@ def create_app():
         traceback.print_exc()
 
     try:
-        from scheduler.agenda import init_scheduler
-        init_scheduler(app)
+        # Only start background scheduler when explicitly enabled.
+        # This avoids unexpected jobs running in production containers and helps
+        # eliminate potential message loops.
+        if os.getenv('ENABLE_SCHEDULER', '0') == '1':
+            from scheduler.agenda import init_scheduler
+            init_scheduler(app)
+        else:
+            print("[info] scheduler disabled (set ENABLE_SCHEDULER=1 to enable)")
     except Exception:
         import sys, traceback
         print("[warn] failed to initialize scheduler:", file=sys.stderr)

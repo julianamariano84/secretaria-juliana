@@ -4,6 +4,7 @@ import logging
 import time
 from .registrations import append_response, get_pending, create_pending
 from .registrations import get_last_history, get_last_sent_question, set_last_sent_question
+from .registrations import get_last_outbound
 from .registrations import apply_answers, mark_payment_confirmed, set_scheduling_status
 
 log = logging.getLogger(__name__)
@@ -43,6 +44,8 @@ SPAM_GUARD_SECONDS = int(os.getenv('SPAM_GUARD_SECONDS', '20'))
 _LAST_SEEN = {}
 _LAST_SENT_QUESTION = {}
 _LAST_SENT_AT = {}
+# Track recently seen provider message IDs to suppress echoes
+_SEEN_MSG_IDS = {}
 
 
 @bp.route("/ping", methods=["GET"])
@@ -90,6 +93,10 @@ def inbound():
         msg = payload['message']
         phone = msg.get('from') or msg.get('sender') or msg.get('author')
         text = msg.get('text') or msg.get('body') or msg.get('content')
+        # capture provider message id if present
+        msg_id = msg.get('id') or msg.get('messageId') or msg.get('msgId') or msg.get('key', {}).get('id')
+    else:
+        msg_id = payload.get('id') or payload.get('messageId')
 
     # fallback shapes
     phone = phone or payload.get('from') or payload.get('phone') or payload.get('sender')
@@ -107,6 +114,21 @@ def inbound():
     # Anti-spam window: ignore duplicate (same phone+text) within few seconds
     try:
         now = int(time.time())
+        # provider echo suppression by message id
+        if msg_id:
+            last_id = _SEEN_MSG_IDS.get(phone)
+            if last_id == msg_id:
+                return jsonify({"ok": True, "ignored": "echo_msgid"}), 200
+            _SEEN_MSG_IDS[phone] = msg_id
+        # provider echo suppression by matching last outbound text within TTL
+        try:
+            echo_ttl = int(os.getenv('ECHO_SUPPRESS_SECONDS', '45'))
+        except Exception:
+            echo_ttl = 45
+        if echo_ttl > 0:
+            last_out = get_last_outbound(phone)
+            if last_out and last_out.get('text') == text and (now - int(last_out.get('ts') or 0)) < echo_ttl:
+                return jsonify({"ok": True, "ignored": "echo_match_outbound"}), 200
         last = _LAST_SEEN.get(phone)
         if last and last.get('text') == text and (now - int(last.get('ts', 0))) < SPAM_GUARD_SECONDS:
             return jsonify({"ok": True, "ignored": "duplicate_window"}), 200
@@ -172,8 +194,8 @@ def inbound():
                                 except Exception:
                                     log.exception("failed to send question to %s", phone)
                             break
-                    # also try to send a friendly greeting via the model if available
-                    if generate_greeting_and_action and not sent_any:
+                    # also try to send a friendly greeting via the model if available (can be disabled)
+                    if os.getenv('DISABLE_GREETING','0') != '1' and generate_greeting_and_action and not sent_any:
                         try:
                             ga = generate_greeting_and_action(text, first_contact=first_contact)
                             if isinstance(ga, dict) and ga.get('greeting'):
@@ -264,8 +286,8 @@ def inbound():
                         except Exception:
                             log.exception("failed to send question to %s", phone)
                     break
-            # model-based greeting as optional nicety
-            if generate_greeting_and_action and not sent_any:
+            # model-based greeting as optional nicety (can be disabled)
+            if os.getenv('DISABLE_GREETING','0') != '1' and generate_greeting_and_action and not sent_any:
                 try:
                     ga = generate_greeting_and_action(text, first_contact=first_contact)
                     if isinstance(ga, dict) and ga.get('greeting'):
@@ -381,7 +403,7 @@ def handle_webhook(payload: dict) -> dict:
             try:
                 if rec:
                     sent_any = False
-                    # prefer asking next unanswered
+                    # prefer asking next unanswered (with backoff and dedupe like inbound)
                     for q in rec.get('questions', []):
                         if q not in rec.get('answers', {}):
                             qmap = {
@@ -397,16 +419,27 @@ def handle_webhook(payload: dict) -> dict:
                                 last = (rec.get('history') or [])[-1].get('text') if rec.get('history') else None
                             except Exception:
                                 last = None
-                            if question and question != last:
+                            last_q_persisted = get_last_sent_question(phone)
+                            last_q = _LAST_SENT_QUESTION.get(phone) or last_q_persisted
+                            now = int(time.time())
+                            last_at = _LAST_SENT_AT.get(phone) or 0
+                            backoff = int(os.getenv('PROMPT_BACKOFF_SECONDS', '10'))
+                            if question and question != last and question != last_q and (now - last_at) >= backoff:
                                 try:
                                     log.info("handle_webhook sending question to %s: %s", phone, question)
                                     send_text(phone, question)
+                                    _LAST_SENT_QUESTION[phone] = question
+                                    _LAST_SENT_AT[phone] = now
+                                    try:
+                                        set_last_sent_question(phone, question)
+                                    except Exception:
+                                        pass
                                     sent_any = True
                                 except Exception:
                                     log.exception("handle_webhook failed to send question to %s", phone)
                             break
                     # model greeting optional
-                    if generate_greeting_and_action and not sent_any:
+                    if os.getenv('DISABLE_GREETING','0') != '1' and generate_greeting_and_action and not sent_any:
                         try:
                             ga = generate_greeting_and_action(text)
                             if isinstance(ga, dict) and ga.get('greeting'):
