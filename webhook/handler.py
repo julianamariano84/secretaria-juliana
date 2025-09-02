@@ -3,6 +3,7 @@ import os
 import logging
 import time
 from .registrations import append_response, get_pending, create_pending
+from .registrations import get_last_history, get_last_sent_question, set_last_sent_question
 from .registrations import apply_answers, mark_payment_confirmed, set_scheduling_status
 
 log = logging.getLogger(__name__)
@@ -41,6 +42,7 @@ IGNORE_FROM_ME = os.getenv('IGNORE_FROM_ME', '1') == '1'
 SPAM_GUARD_SECONDS = int(os.getenv('SPAM_GUARD_SECONDS', '20'))
 _LAST_SEEN = {}
 _LAST_SENT_QUESTION = {}
+_LAST_SENT_AT = {}
 
 
 @bp.route("/ping", methods=["GET"])
@@ -146,18 +148,26 @@ def inbound():
                             }
                             question = qmap.get(q)
                             # avoid re-sending same question if it's the last history entry
-                            last = None
-                            try:
-                                last = (rec.get('history') or [])[-1].get('text') if rec.get('history') else None
-                            except Exception:
-                                last = None
+                            # last inbound from store and last sent question (cross-process)
+                            last_entry = get_last_history(phone)
+                            last = last_entry.get('text') if last_entry else None
+                            last_q_persisted = get_last_sent_question(phone)
                             # avoid re-sending same question we already sent very recently
-                            last_q = _LAST_SENT_QUESTION.get(phone)
-                            if question and question != last and question != last_q:
+                            last_q = _LAST_SENT_QUESTION.get(phone) or last_q_persisted
+                            # simple per-phone backoff for prompts (avoid sending too fast)
+                            now = int(time.time())
+                            last_at = _LAST_SENT_AT.get(phone) or 0
+                            backoff = int(os.getenv('PROMPT_BACKOFF_SECONDS', '10'))
+                            if question and question != last and question != last_q and (now - last_at) >= backoff:
                                 try:
                                     log.info("sending question to %s: %s", phone, question)
                                     send_text(phone, question)
                                     _LAST_SENT_QUESTION[phone] = question
+                                    _LAST_SENT_AT[phone] = now
+                                    try:
+                                        set_last_sent_question(phone, question)
+                                    except Exception:
+                                        pass
                                     sent_any = True
                                 except Exception:
                                     log.exception("failed to send question to %s", phone)
@@ -233,17 +243,23 @@ def inbound():
                         'confirm': 'Você confirma que deseja se cadastrar? (sim/não)'
                     }
                     question = qmap.get(q)
-                    last = None
-                    try:
-                        last = (rec.get('history') or [])[-1].get('text') if rec.get('history') else None
-                    except Exception:
-                        last = None
-                    last_q = _LAST_SENT_QUESTION.get(phone)
-                    if question and question != last and question != last_q:
+                    last_entry = get_last_history(phone)
+                    last = last_entry.get('text') if last_entry else None
+                    last_q_persisted = get_last_sent_question(phone)
+                    last_q = _LAST_SENT_QUESTION.get(phone) or last_q_persisted
+                    now = int(time.time())
+                    last_at = _LAST_SENT_AT.get(phone) or 0
+                    backoff = int(os.getenv('PROMPT_BACKOFF_SECONDS', '10'))
+                    if question and question != last and question != last_q and (now - last_at) >= backoff:
                         try:
                             log.info("sending question to %s: %s", phone, question)
                             send_text(phone, question)
                             _LAST_SENT_QUESTION[phone] = question
+                            _LAST_SENT_AT[phone] = now
+                            try:
+                                set_last_sent_question(phone, question)
+                            except Exception:
+                                pass
                             sent_any = True
                         except Exception:
                             log.exception("failed to send question to %s", phone)

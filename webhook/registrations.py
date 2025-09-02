@@ -179,6 +179,48 @@ def list_pending() -> List[Dict[str, Any]]:
     return _read_all()
 
 
+def get_last_history(phone: str) -> Optional[Dict[str, Any]]:
+    """Return the last history entry {'ts': int, 'text': str} for phone, if any."""
+    items = _read_all()
+    rec = _find_by_phone(items, phone)
+    if not rec:
+        return None
+    hist = rec.get('history') or []
+    if not hist:
+        return None
+    return hist[-1]
+
+
+def get_last_sent_question(phone: str) -> Optional[str]:
+    """Return the last question text we sent to this phone, if persisted."""
+    items = _read_all()
+    rec = _find_by_phone(items, phone)
+    if not rec:
+        return None
+    return rec.get('last_sent_question')
+
+
+def set_last_sent_question(phone: str, question: str) -> Optional[Dict[str, Any]]:
+    """Persist the last question text we sent for this phone (cross-process dedupe)."""
+    if not phone or not question:
+        return None
+    items = _read_all()
+    rec = _find_by_phone(items, phone)
+    if not rec:
+        # create minimal record if missing
+        rec = create_pending(phone)
+        items = _read_all()
+        rec = _find_by_phone(items, phone)
+    rec['last_sent_question'] = question
+    rec['last_sent_at'] = int(time.time())
+    for i, it in enumerate(items):
+        if it.get('phone') == phone:
+            items[i] = rec
+            break
+    _write_all(items)
+    return rec
+
+
 def mark_created(phone: str, created_info: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
     """Mark a pending registration as created and store created_info.
 
