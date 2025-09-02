@@ -384,6 +384,8 @@ def _debug_env():
     zurl = os.getenv('ZAPI_URL')
     ztoken = os.getenv('ZAP_TOKEN') or os.getenv('ZAPI_TOKEN')
     client = os.getenv('CLIENT_TOKEN') or os.getenv('CLIENTTOKEN')
+    wh_secret = os.getenv('WEBHOOK_SECRET')
+    wh_header = os.getenv('WEBHOOK_HEADER') or 'X-Hook-Token'
     token_in_url = None
     try:
         if zurl and '/token/' in zurl:
@@ -396,5 +398,7 @@ def _debug_env():
         'ZAPI_URL': mask(zurl),
         'ZAP_TOKEN': mask(ztoken),
         'CLIENT_TOKEN': mask(client),
+    'WEBHOOK_SECRET': mask(wh_secret),
+    'WEBHOOK_HEADER': wh_header,
         'token_in_url': mask(token_in_url),
     })
