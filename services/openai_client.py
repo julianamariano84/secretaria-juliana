@@ -274,29 +274,34 @@ def generate_greeting_and_action(text: str, first_contact: bool = False) -> Dict
       - action: one of 'ask', 'confirm', 'none'
       - question: optional follow-up question when action == 'ask'
 
-    This first tries the OpenAI client and falls back to a lightweight
-    heuristic using local_extract_registration_fields.
+    This first tries the OpenAI client (when configured) and falls back to a
+    lightweight heuristic using local_extract_registration_fields. The greeting
+    is short, cordial, and empathetic, and should introduce the assistant as
+    the secretary persona. The function only returns content, it does not send
+    messages directly.
     """
     # default fallback (persona-based)
     _fallback_name = os.getenv('SECRETARY_NAME', 'Márcia')
     _fallback_title = os.getenv('SECRETARY_TITLE', 'secretária da fonoaudióloga Juliana Mariano')
     fallback = {
-        "greeting": f"Oi! Eu sou a {_fallback_name}, {_fallback_title}.",
+        "greeting": f"Oi! Eu sou a {_fallback_name}, {_fallback_title}. Como você está?",
         "action": "ask",
-        "question": "Qual seu nome completo?",
+        "question": "Para começarmos, pode me dizer o nome completo do paciente?",
     }
     if not isinstance(text, str) or not text.strip():
         return fallback
 
-    # detect short greeting-only messages and, on first contact, return a
-    # creative presentation using a secretary persona from env
+    # detect short greeting-only messages and, on first contact, craft a friendly intro
     import re
-    greeting_rx = re.compile(r"^\s*(oi|ol[áa]|ola|bom dia|boa tarde|boa noite|oi\b|olá\b)[!,.\s]*$", re.I)
-    if first_contact and greeting_rx.match(text.strip()[:50]):
+    greeting_rx = re.compile(r"^\s*(oi|ol[áa]|ola|bom dia|boa tarde|boa noite)[!,\.\s]*$", re.I)
+    if first_contact and greeting_rx.match(text.strip()[:80]):
         name = os.getenv('SECRETARY_NAME', 'Márcia')
         title = os.getenv('SECRETARY_TITLE', 'secretária da fonoaudióloga Juliana Mariano')
-    greet = f"Oi! Eu sou a {name}, {title}. Geralmente falo com os pais ou responsáveis. Se preferir, pode me mandar áudio, tá?"
-    return {"greeting": greet, "action": "ask", "question": "Posso começar pedindo o nome completo do paciente?"}
+        greet = (
+            f"Olá! Eu sou a {name}, {title}. Seja bem-vindo(a)! Como você está hoje? "
+            "Se preferir, pode me mandar áudio."
+        )
+        return {"greeting": greet, "action": "ask", "question": "Podemos começar pelo nome completo do paciente?"}
 
     try:
         logger.info("openai_client: attempting to initialize client for greeting/action")
@@ -314,19 +319,39 @@ def generate_greeting_and_action(text: str, first_contact: bool = False) -> Dict
         fields = ['name', 'dob', 'cpf', 'address', 'confirm']
         missing = [f for f in fields if not parsed.get(f)]
         if not missing:
-            name = parsed.get('name') or ''
-            greet = f"Olá{(' ' + name) if name else ''}! Recebi seus dados. Você confirma o cadastro? (sim/não)"
+            nm = parsed.get('name') or ''
+            greet = f"Olá{(' ' + nm) if nm else ''}! Recebi seus dados. Você confirma o cadastro? (sim/não)"
             return {"greeting": greet, "action": "confirm", "question": None}
         # ask for the first missing
-        qmap = {'name': 'Qual seu nome completo?', 'dob': 'Qual sua data de nascimento (dd/mm/aaaa)?', 'cpf': 'Qual seu CPF?', 'address': 'Qual seu endereço?', 'confirm': 'Você confirma que deseja se cadastrar? (sim/não)'}
-        return {"greeting": "Olá! Obrigado.", "action": "ask", "question": qmap.get(missing[0], 'Pode me informar mais detalhes?')}
+        qmap = {
+            'name': 'Qual seu nome completo?',
+            'dob': 'Qual sua data de nascimento (dd/mm/aaaa)?',
+            'cpf': 'Qual seu CPF?',
+            'address': 'Qual seu endereço?',
+            'confirm': 'Você confirma que deseja se cadastrar? (sim/não)'
+        }
+        return {
+            "greeting": f"Perfeito! Vou te ajudar com carinho.",
+            "action": "ask",
+            "question": qmap.get(missing[0], 'Pode me informar mais detalhes?')
+        }
 
     # If we have a client, ask the model for a small JSON response
+    # Provide context on missing fields (heuristic) to help the model decide next step
+    try:
+        parsed_hint = local_extract_registration_fields(text)
+        fields = ['name', 'dob', 'cpf', 'address', 'confirm']
+        missing_hint = [f for f in fields if not parsed_hint.get(f)]
+    except Exception:
+        missing_hint = []
+
     prompt = (
-        "Leia a mensagem do paciente abaixo e gere UM JSON com as chaves: greeting, action, question.\n"
-        "- greeting: uma única frase curta e simpática de saudação em PT-BR\n"
-        "- action: 'ask'|'confirm'|'none' (próximo passo do atendimento)\n"
-        "- question: se action=='ask', escreva a pergunta objetiva a ser enviada; caso contrário null\n\n"
+        "Você está atendendo via WhatsApp. Leia a mensagem da pessoa e produza APENAS um JSON com as chaves: greeting, action, question.\n"
+        "- greeting: UMA frase acolhedora, simpática e curta, em PT-BR, se apresentando (ex: 'Oi! Eu sou a Márcia...') e perguntando como a pessoa está.\n"
+        "- action: 'ask'|'confirm'|'none' (próximo passo).\n"
+        "- question: se action=='ask', uma pergunta direta e objetiva, sem rodeios. Caso contrário, null.\n"
+        f"- contexto_first_contact: {bool(first_contact)}.\n"
+        f"- campos_sugeridos_faltando: {missing_hint}.\n\n"
         "Mensagem:\n" + text + "\n\nJSON:"
     )
 
@@ -336,12 +361,11 @@ def generate_greeting_and_action(text: str, first_contact: bool = False) -> Dict
         _name = os.getenv('SECRETARY_NAME', 'Márcia')
         _title = os.getenv('SECRETARY_TITLE', 'secretária da fonoaudióloga Juliana Mariano')
         system_msg = (
-            f"Você é {_name}, {_title}. \n"
-            "Contexto: na maioria das vezes você fala com pais ou responsáveis do paciente.\n"
-            "Responsabilidades: gerenciar agenda na plataforma Terapee, orientar e receber o pagamento da consulta e apoiar na contabilização.\n"
-            "Estilo: linguagem fluida, acolhedora, levemente coloquial e objetiva, sempre em português do Brasil.\n"
-            "Capacidades: você pode receber e entender mensagens de áudio (se a pessoa preferir).\n"
-            "Instruções de saída: responda curto e produza apenas o JSON pedido (greeting, action, question), sem explicações."
+            f"Você é {_name}, {_title}.\n"
+            "Tono: extremamente cordial, empática e direta, sempre em PT-BR.\n"
+            "Contexto: normalmente fala com pais ou responsáveis do paciente. Aceite áudios.\n"
+            "Objetivo: conduzir o cadastro e o agendamento com leveza, evitando mensagens longas.\n"
+            "Saída: apenas o JSON (greeting, action, question). Nada além disso."
         )
         resp = client.chat.completions.create(
             model=os.getenv('OPENAI_MODEL', 'gpt-3.5-turbo'),
@@ -358,10 +382,20 @@ def generate_greeting_and_action(text: str, first_contact: bool = False) -> Dict
             content = content[first_brace:]
         parsed = json.loads(content)
         # ensure keys exist and have sensible defaults
+        # sanitize and clamp outputs
+        greeting_out = (parsed.get('greeting') or '').strip()
+        action_out = (parsed.get('action') or '').strip() or 'none'
+        question_out = (parsed.get('question') or None)
+        if not greeting_out:
+            greeting_out = fallback['greeting']
+        if action_out not in ('ask', 'confirm', 'none'):
+            action_out = 'none'
+        if action_out != 'ask':
+            question_out = None
         return {
-            'greeting': parsed.get('greeting') or fallback['greeting'],
-            'action': parsed.get('action') or 'none',
-            'question': parsed.get('question') if parsed.get('question') else None,
+            'greeting': greeting_out,
+            'action': action_out,
+            'question': question_out,
         }
     except Exception as e:
         logger.exception("[openai_client] greeting/action error: %s", e)

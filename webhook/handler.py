@@ -35,6 +35,17 @@ def _no_op_send(phone: str, message: str) -> dict:
 if send_text is None:
     send_text = _no_op_send
 
+
+def _maybe_send_text(phone: str, message: str):
+    """Send only when QUIET_MODE != 1; otherwise, log and skip."""
+    if os.getenv('QUIET_MODE', '0') == '1':
+        try:
+            log.info("QUIET_MODE=1 -> skipping outbound to %s: %s", phone, message)
+        except Exception:
+            pass
+        return {"to": phone, "message": message, "status": "skipped_quiet_mode"}
+    return send_text(phone, message)
+
 bp = Blueprint("webhook", __name__, url_prefix="/webhook")
 
 # Anti-loop/anti-spam guards
@@ -116,7 +127,7 @@ def inbound():
         from_me = False
         if isinstance(payload.get('message'), dict):
             m = payload['message']
-            from_me = bool(m.get('fromMe') or m.get('from_me'))
+            from_me = bool(m.get('fromMe') or m.get('from_me') or (isinstance(m.get('key'), dict) and m.get('key', {}).get('fromMe')))
         from_me = from_me or bool(payload.get('fromMe') or payload.get('from_me'))
         if IGNORE_FROM_ME and from_me:
             return jsonify({"ok": True, "ignored": "fromMe"}), 200
@@ -240,7 +251,7 @@ def inbound():
                             if question and question != last and question != last_q and (now - last_at) >= backoff:
                                 try:
                                     log.info("sending question to %s: %s", phone, question)
-                                    send_text(phone, question)
+                                    _maybe_send_text(phone, question)
                                     _LAST_SENT_QUESTION[phone] = question
                                     _LAST_SENT_AT[phone] = now
                                     try:
@@ -251,14 +262,14 @@ def inbound():
                                 except Exception:
                                     log.exception("failed to send question to %s", phone)
                             break
-                    # also try to send a friendly greeting via the model (at most once per phone)
-                    if os.getenv('DISABLE_GREETING','0') != '1' and generate_greeting_and_action and not sent_any and not get_greeting_sent(phone):
+                    # also try to send a friendly greeting via the model (only on first contact and at most once)
+                    if first_contact and os.getenv('DISABLE_GREETING','0') != '1' and generate_greeting_and_action and not sent_any and not get_greeting_sent(phone):
                         try:
                             ga = generate_greeting_and_action(text, first_contact=first_contact)
                             if isinstance(ga, dict) and ga.get('greeting'):
                                 try:
                                     log.info("sending model greeting to %s: %s", phone, ga.get('greeting'))
-                                    send_text(phone, ga.get('greeting'))
+                                    _maybe_send_text(phone, ga.get('greeting'))
                                     try:
                                         mark_greeting_sent(phone)
                                     except Exception:
@@ -287,13 +298,13 @@ def inbound():
                                     mark_payment_created(phone, {'provider': 'infinitepay', 'raw': pay, 'url': url, 'order_id': pay.get('order_id') or oid})
                                     if url:
                                         try:
-                                            send_text(phone, f"Para finalizar o agendamento, por favor efetue o pagamento: {url}")
+                                            _maybe_send_text(phone, f"Para finalizar o agendamento, por favor efetue o pagamento: {url}")
                                         except Exception:
                                             log.exception("failed to send payment link to %s", phone)
                                         # anticipate scheduling preferences after payment
                                         try:
                                             set_scheduling_status(phone, 'awaiting_time')
-                                            send_text(phone, "Depois do pagamento, me diga os melhores dias/horários para a consulta e eu encaixo na agenda da Juliana, combinado?")
+                                            _maybe_send_text(phone, "Depois do pagamento, me diga os melhores dias/horários para a consulta e eu encaixo na agenda da Juliana, combinado?")
                                         except Exception:
                                             log.exception('failed to set scheduling status for %s', phone)
                                 except Exception:
@@ -336,7 +347,7 @@ def inbound():
                     if question and question != last and question != last_q and (now - last_at) >= backoff:
                         try:
                             log.info("sending question to %s: %s", phone, question)
-                            send_text(phone, question)
+                            _maybe_send_text(phone, question)
                             _LAST_SENT_QUESTION[phone] = question
                             _LAST_SENT_AT[phone] = now
                             try:
@@ -354,7 +365,7 @@ def inbound():
                     if isinstance(ga, dict) and ga.get('greeting'):
                         try:
                             log.info("sending model greeting to %s: %s", phone, ga.get('greeting'))
-                            send_text(phone, ga.get('greeting'))
+                            _maybe_send_text(phone, ga.get('greeting'))
                             try:
                                 mark_greeting_sent(phone)
                             except Exception:
@@ -399,7 +410,7 @@ def payment_callback():
             mark_payment_confirmed(phone, params)
             # notify user
             try:
-                send_text(phone, "Pagamento recebido! Sua consulta foi agendada. Entraremos em contato para confirmar o horário.")
+                _maybe_send_text(phone, "Pagamento recebido! Sua consulta foi agendada. Entraremos em contato para confirmar o horário.")
             except Exception:
                 log.exception('failed to send payment confirmation to %s', phone)
             return jsonify({"ok": True, "phone": phone, "params": params})
@@ -501,7 +512,7 @@ def handle_webhook(payload: dict) -> dict:
                             if question and question != last and question != last_q and (now - last_at) >= backoff:
                                 try:
                                     log.info("handle_webhook sending question to %s: %s", phone, question)
-                                    send_text(phone, question)
+                                    _maybe_send_text(phone, question)
                                     _LAST_SENT_QUESTION[phone] = question
                                     _LAST_SENT_AT[phone] = now
                                     try:
@@ -518,7 +529,7 @@ def handle_webhook(payload: dict) -> dict:
                             ga = generate_greeting_and_action(text)
                             if isinstance(ga, dict) and ga.get('greeting'):
                                 try:
-                                    send_text(phone, ga.get('greeting'))
+                                    _maybe_send_text(phone, ga.get('greeting'))
                                     try:
                                         mark_greeting_sent(phone)
                                     except Exception:

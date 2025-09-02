@@ -109,3 +109,4 @@ foreach ($u in $urls) {
 
 Write-Host "All attempts finished. Review output above for StatusCode and Body. Look for attempts that returned a successful message object (no error)." -ForegroundColor Green
  
+Invoke-History
