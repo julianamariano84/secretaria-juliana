@@ -142,6 +142,19 @@ def append_response(phone: str, text: str, ts: Optional[int] = None) -> Dict[str
                 if prev_text == prompt:
                     last_asked = key
                     break
+        # Fallback: use persisted last_sent_question when available, in case
+        # another message (ex.: auto-resposta do provedor) veio entre a pergunta
+        # e a resposta do usuário.
+        if not last_asked:
+            try:
+                last_q = rec.get('last_sent_question')
+                if last_q:
+                    for key, prompt in prompts.items():
+                        if last_q == prompt:
+                            last_asked = key
+                            break
+            except Exception:
+                pass
     except Exception:
         last_asked = None
 

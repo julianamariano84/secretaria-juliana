@@ -94,6 +94,22 @@ def _is_non_chat_event(payload: dict) -> bool:
     return False
 
 
+def _looks_like_auto_reply(text: str) -> bool:
+    try:
+        t = (text or '').strip().lower()
+        if not t:
+            return False
+        # common provider auto replies or empty acknowledgements we should ignore
+        autos = (
+            'obrigado pela mensagem',
+            'mensagem recebida',
+            'esta é uma mensagem automática',
+        )
+        return any(a in t for a in autos)
+    except Exception:
+        return False
+
+
 @bp.route("/ping", methods=["GET"])
 def ping():
     return jsonify({"ok": True})
@@ -159,29 +175,35 @@ def inbound():
     phone = phone or payload.get('from') or payload.get('phone') or payload.get('sender')
     text = text or payload.get('text') or payload.get('message') or payload.get('body') or payload.get('content')
 
-    # normalize phone (remove spaces) and digits for checks
+    # normalize phone (remove spaces) and derive a canonical digits-only version
     if isinstance(phone, str):
         phone = phone.strip()
     phone_digits = ''.join(ch for ch in (phone or '') if ch.isdigit())
+    # Use digits-only as the canonical phone everywhere (store, dedupe, outbound)
+    canonical_phone = phone_digits or phone
 
-    if not phone or not text:
+    if not canonical_phone or not text:
         return jsonify({"ok": False, "error": "missing phone or text", "payload": payload}), 400
 
     # drop immediately if phone is blocked
     if block and phone_digits in block:
         return jsonify({"ok": True, "ignored": "blocked_phone"}), 200
 
-    log.info("inbound message from %s: %s", phone, text)
+    log.info("inbound message from %s: %s", canonical_phone, text)
+
+    # Ignore known automatic replies that could confuse the flow
+    if _looks_like_auto_reply(text):
+        return jsonify({"ok": True, "ignored": "auto_reply"}), 200
 
     # Anti-spam and echo suppression
     try:
         now = int(time.time())
         # provider echo suppression by message id
         if msg_id:
-            last_id = _SEEN_MSG_IDS.get(phone)
+            last_id = _SEEN_MSG_IDS.get(canonical_phone)
             if last_id == msg_id:
                 return jsonify({"ok": True, "ignored": "echo_msgid"}), 200
-            _SEEN_MSG_IDS[phone] = msg_id
+            _SEEN_MSG_IDS[canonical_phone] = msg_id
 
         # provider echo suppression by matching last outbound text within TTL
         try:
@@ -189,7 +211,7 @@ def inbound():
         except Exception:
             echo_ttl = 120
         if echo_ttl > 0:
-            last_out = get_last_outbound(phone)
+            last_out = get_last_outbound(canonical_phone)
             if last_out:
                 last_text_norm = _normalize_text(last_out.get('text') or '')
                 cur_text_norm = _normalize_text(text)
@@ -197,15 +219,15 @@ def inbound():
                     return jsonify({"ok": True, "ignored": "echo_match_outbound"}), 200
 
         # Anti-spam window: ignore duplicate (same phone+text) within seconds
-        last = _LAST_SEEN.get(phone)
+        last = _LAST_SEEN.get(canonical_phone)
         if last and _normalize_text(last.get('text') or '') == _normalize_text(text) and (now - int(last.get('ts', 0))) < SPAM_GUARD_SECONDS:
             return jsonify({"ok": True, "ignored": "duplicate_window"}), 200
-        _LAST_SEEN[phone] = {"text": text, "ts": now}
+        _LAST_SEEN[canonical_phone] = {"text": text, "ts": now}
     except Exception:
         pass
 
     # detect if this is the first contact from this phone
-    existing = get_pending(phone)
+    existing = get_pending(canonical_phone)
     first_contact = existing is None
 
     # Try structured extraction via OpenAI first (non-blocking)
@@ -219,8 +241,8 @@ def inbound():
     if parsed and not (isinstance(parsed, dict) and parsed.get('error')):
         # merge structured answers into pending registration if exists
         try:
-            apply_answers(phone, parsed)
-            rec = get_pending(phone)
+            apply_answers(canonical_phone, parsed)
+            rec = get_pending(canonical_phone)
             # Optionally generate and send a follow-up greeting/action.
             # Prefer asking the next missing question from the pending record
             try:
@@ -239,43 +261,43 @@ def inbound():
                             question = qmap.get(q)
                             # avoid re-sending same question if it's the last history entry
                             # last inbound from store and last sent question (cross-process)
-                            last_entry = get_last_history(phone)
+                            last_entry = get_last_history(canonical_phone)
                             last = last_entry.get('text') if last_entry else None
-                            last_q_persisted = get_last_sent_question(phone)
+                            last_q_persisted = get_last_sent_question(canonical_phone)
                             # avoid re-sending same question we already sent very recently
-                            last_q = _LAST_SENT_QUESTION.get(phone) or last_q_persisted
+                            last_q = _LAST_SENT_QUESTION.get(canonical_phone) or last_q_persisted
                             # simple per-phone backoff for prompts (avoid sending too fast)
                             now = int(time.time())
-                            last_at = _LAST_SENT_AT.get(phone) or 0
+                            last_at = _LAST_SENT_AT.get(canonical_phone) or 0
                             backoff = int(os.getenv('PROMPT_BACKOFF_SECONDS', '10'))
                             if question and question != last and question != last_q and (now - last_at) >= backoff:
                                 try:
-                                    log.info("sending question to %s: %s", phone, question)
-                                    _maybe_send_text(phone, question)
-                                    _LAST_SENT_QUESTION[phone] = question
-                                    _LAST_SENT_AT[phone] = now
+                                    log.info("sending question to %s: %s", canonical_phone, question)
+                                    _maybe_send_text(canonical_phone, question)
+                                    _LAST_SENT_QUESTION[canonical_phone] = question
+                                    _LAST_SENT_AT[canonical_phone] = now
                                     try:
-                                        set_last_sent_question(phone, question)
+                                        set_last_sent_question(canonical_phone, question)
                                     except Exception:
                                         pass
                                     sent_any = True
                                 except Exception:
-                                    log.exception("failed to send question to %s", phone)
+                                    log.exception("failed to send question to %s", canonical_phone)
                             break
                     # also try to send a friendly greeting via the model (only on first contact and at most once)
-                    if first_contact and os.getenv('DISABLE_GREETING','0') != '1' and generate_greeting_and_action and not sent_any and not get_greeting_sent(phone):
+                    if first_contact and os.getenv('DISABLE_GREETING','0') != '1' and generate_greeting_and_action and not sent_any and not get_greeting_sent(canonical_phone):
                         try:
                             ga = generate_greeting_and_action(text, first_contact=first_contact)
                             if isinstance(ga, dict) and ga.get('greeting'):
                                 try:
-                                    log.info("sending model greeting to %s: %s", phone, ga.get('greeting'))
-                                    _maybe_send_text(phone, ga.get('greeting'))
+                                    log.info("sending model greeting to %s: %s", canonical_phone, ga.get('greeting'))
+                                    _maybe_send_text(canonical_phone, ga.get('greeting'))
                                     try:
-                                        mark_greeting_sent(phone)
+                                        mark_greeting_sent(canonical_phone)
                                     except Exception:
                                         pass
                                 except Exception:
-                                    log.exception("failed to send greeting to %s", phone)
+                                    log.exception("failed to send greeting to %s", canonical_phone)
                         except Exception:
                             log.exception('generate_greeting_and_action failed')
 
@@ -291,36 +313,36 @@ def inbound():
                                     import uuid
                                     oid = str(uuid.uuid4())
                                     result_url = os.getenv('WEBHOOK_PUBLIC_URL', '').rstrip('/') + '/webhook/payment-callback'
-                                    pay = create_payment_intent(phone, amount_cents=15000, description='Consulta médica', order_id=oid, result_url=result_url)
+                                    pay = create_payment_intent(canonical_phone, amount_cents=15000, description='Consulta médica', order_id=oid, result_url=result_url)
                                     # try to extract a payment url from provider response
                                     url = pay.get('payment_url') or pay.get('url') or pay.get('checkout_url')
                                     from .registrations import mark_payment_created
-                                    mark_payment_created(phone, {'provider': 'infinitepay', 'raw': pay, 'url': url, 'order_id': pay.get('order_id') or oid})
+                                    mark_payment_created(canonical_phone, {'provider': 'infinitepay', 'raw': pay, 'url': url, 'order_id': pay.get('order_id') or oid})
                                     if url:
                                         try:
-                                            _maybe_send_text(phone, f"Para finalizar o agendamento, por favor efetue o pagamento: {url}")
+                                            _maybe_send_text(canonical_phone, f"Para finalizar o agendamento, por favor efetue o pagamento: {url}")
                                         except Exception:
-                                            log.exception("failed to send payment link to %s", phone)
+                                            log.exception("failed to send payment link to %s", canonical_phone)
                                         # anticipate scheduling preferences after payment
                                         try:
-                                            set_scheduling_status(phone, 'awaiting_time')
-                                            _maybe_send_text(phone, "Depois do pagamento, me diga os melhores dias/horários para a consulta e eu encaixo na agenda da Juliana, combinado?")
+                                            set_scheduling_status(canonical_phone, 'awaiting_time')
+                                            _maybe_send_text(canonical_phone, "Depois do pagamento, me diga os melhores dias/horários para a consulta e eu encaixo na agenda da Juliana, combinado?")
                                         except Exception:
-                                            log.exception('failed to set scheduling status for %s', phone)
+                                            log.exception('failed to set scheduling status for %s', canonical_phone)
                                 except Exception:
-                                    log.exception('failed to create payment for %s', phone)
+                                    log.exception('failed to create payment for %s', canonical_phone)
                     except Exception:
-                        log.exception('payment creation flow failed for %s', phone)
+                        log.exception('payment creation flow failed for %s', canonical_phone)
             except Exception:
                 pass
             return jsonify({"ok": True, "record": rec, "extracted": True})
         except Exception:
             # fallback to raw append
-            rec = append_response(phone, text, ts=payload.get('timestamp'))
+            rec = append_response(canonical_phone, text, ts=payload.get('timestamp'))
             return jsonify({"ok": True, "record": rec, "extracted": False})
 
     # best-effort append when extraction not available or failed
-    rec = append_response(phone, text, ts=payload.get('timestamp'))
+    rec = append_response(canonical_phone, text, ts=payload.get('timestamp'))
 
     # generate and send greeting + next action when possible
     try:
@@ -337,41 +359,41 @@ def inbound():
                         'confirm': 'Você confirma que deseja se cadastrar? (sim/não)'
                     }
                     question = qmap.get(q)
-                    last_entry = get_last_history(phone)
+                    last_entry = get_last_history(canonical_phone)
                     last = last_entry.get('text') if last_entry else None
-                    last_q_persisted = get_last_sent_question(phone)
-                    last_q = _LAST_SENT_QUESTION.get(phone) or last_q_persisted
+                    last_q_persisted = get_last_sent_question(canonical_phone)
+                    last_q = _LAST_SENT_QUESTION.get(canonical_phone) or last_q_persisted
                     now = int(time.time())
-                    last_at = _LAST_SENT_AT.get(phone) or 0
+                    last_at = _LAST_SENT_AT.get(canonical_phone) or 0
                     backoff = int(os.getenv('PROMPT_BACKOFF_SECONDS', '10'))
                     if question and question != last and question != last_q and (now - last_at) >= backoff:
                         try:
-                            log.info("sending question to %s: %s", phone, question)
-                            _maybe_send_text(phone, question)
-                            _LAST_SENT_QUESTION[phone] = question
-                            _LAST_SENT_AT[phone] = now
+                            log.info("sending question to %s: %s", canonical_phone, question)
+                            _maybe_send_text(canonical_phone, question)
+                            _LAST_SENT_QUESTION[canonical_phone] = question
+                            _LAST_SENT_AT[canonical_phone] = now
                             try:
-                                set_last_sent_question(phone, question)
+                                set_last_sent_question(canonical_phone, question)
                             except Exception:
                                 pass
                             sent_any = True
                         except Exception:
-                            log.exception("failed to send question to %s", phone)
+                            log.exception("failed to send question to %s", canonical_phone)
                     break
             # model-based greeting as optional nicety (at most once per phone)
-            if os.getenv('DISABLE_GREETING','0') != '1' and generate_greeting_and_action and not sent_any and not get_greeting_sent(phone):
+            if os.getenv('DISABLE_GREETING','0') != '1' and generate_greeting_and_action and not sent_any and not get_greeting_sent(canonical_phone):
                 try:
                     ga = generate_greeting_and_action(text, first_contact=first_contact)
                     if isinstance(ga, dict) and ga.get('greeting'):
                         try:
-                            log.info("sending model greeting to %s: %s", phone, ga.get('greeting'))
-                            _maybe_send_text(phone, ga.get('greeting'))
+                            log.info("sending model greeting to %s: %s", canonical_phone, ga.get('greeting'))
+                            _maybe_send_text(canonical_phone, ga.get('greeting'))
                             try:
-                                mark_greeting_sent(phone)
+                                mark_greeting_sent(canonical_phone)
                             except Exception:
                                 pass
                         except Exception:
-                            log.exception("failed to send greeting to %s", phone)
+                            log.exception("failed to send greeting to %s", canonical_phone)
                 except Exception:
                     pass
     except Exception:
@@ -456,6 +478,7 @@ def handle_webhook(payload: dict) -> dict:
         # final normalization
         if isinstance(phone, str):
             phone = phone.strip()
+        canonical_phone = ''.join(ch for ch in (phone or '') if ch.isdigit()) or phone
         if phone and text:
             # Ignore self-sent messages if provider flags them
             try:
@@ -469,7 +492,7 @@ def handle_webhook(payload: dict) -> dict:
             except Exception:
                 pass
             # reuse the append + greeting logic from inbound
-            rec = append_response(phone, text)
+            rec = append_response(canonical_phone, text)
 
             # try structured extraction
             try:
@@ -477,8 +500,8 @@ def handle_webhook(payload: dict) -> dict:
                     parsed = extract_registration_fields(text)
                     if parsed and not (isinstance(parsed, dict) and parsed.get('error')):
                         try:
-                            apply_answers(phone, parsed)
-                            rec = get_pending(phone)
+                            apply_answers(canonical_phone, parsed)
+                            rec = get_pending(canonical_phone)
                         except Exception:
                             pass
             except Exception:
@@ -504,34 +527,34 @@ def handle_webhook(payload: dict) -> dict:
                                 last = (rec.get('history') or [])[-1].get('text') if rec.get('history') else None
                             except Exception:
                                 last = None
-                            last_q_persisted = get_last_sent_question(phone)
-                            last_q = _LAST_SENT_QUESTION.get(phone) or last_q_persisted
+                            last_q_persisted = get_last_sent_question(canonical_phone)
+                            last_q = _LAST_SENT_QUESTION.get(canonical_phone) or last_q_persisted
                             now = int(time.time())
-                            last_at = _LAST_SENT_AT.get(phone) or 0
+                            last_at = _LAST_SENT_AT.get(canonical_phone) or 0
                             backoff = int(os.getenv('PROMPT_BACKOFF_SECONDS', '10'))
                             if question and question != last and question != last_q and (now - last_at) >= backoff:
                                 try:
-                                    log.info("handle_webhook sending question to %s: %s", phone, question)
-                                    _maybe_send_text(phone, question)
-                                    _LAST_SENT_QUESTION[phone] = question
-                                    _LAST_SENT_AT[phone] = now
+                                    log.info("handle_webhook sending question to %s: %s", canonical_phone, question)
+                                    _maybe_send_text(canonical_phone, question)
+                                    _LAST_SENT_QUESTION[canonical_phone] = question
+                                    _LAST_SENT_AT[canonical_phone] = now
                                     try:
-                                        set_last_sent_question(phone, question)
+                                        set_last_sent_question(canonical_phone, question)
                                     except Exception:
                                         pass
                                     sent_any = True
                                 except Exception:
-                                    log.exception("handle_webhook failed to send question to %s", phone)
+                                    log.exception("handle_webhook failed to send question to %s", canonical_phone)
                             break
                     # model greeting optional (at most once)
-                    if os.getenv('DISABLE_GREETING','0') != '1' and generate_greeting_and_action and not sent_any and not get_greeting_sent(phone):
+                    if os.getenv('DISABLE_GREETING','0') != '1' and generate_greeting_and_action and not sent_any and not get_greeting_sent(canonical_phone):
                         try:
                             ga = generate_greeting_and_action(text)
                             if isinstance(ga, dict) and ga.get('greeting'):
                                 try:
-                                    _maybe_send_text(phone, ga.get('greeting'))
+                                    _maybe_send_text(canonical_phone, ga.get('greeting'))
                                     try:
-                                        mark_greeting_sent(phone)
+                                        mark_greeting_sent(canonical_phone)
                                     except Exception:
                                         pass
                                 except Exception:
