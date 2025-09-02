@@ -19,12 +19,17 @@ Steps
 3) Environment variables
 - In Railway, open Project Settings → Variables and add the required env vars:
   - `SECRET_KEY` (Flask secret key)
+  - `ZAPI_URL` (must end with /send-text and include the instance token in the path)
+  - `ZAP_TOKEN` (optional; if set, must match the token from ZAPI_URL)
+  - `CLIENT_TOKEN` (if your Z-API instance requires the Client-Token header)
   - `OPENAI_API_KEY` (if using OpenAI)
   - `OPENAI_MODEL` (optional)
-  - `ZAPI_URL` (base URL for Z-API API)
-  - `ZAPI_TOKEN` (token for sending messages / authenticating)
+  - `SECRETARY_NAME` (e.g., "Márcia")
+  - `SECRETARY_TITLE` (e.g., "secretária da fonoaudióloga Juliana Mariano")
+  - `DEBUG_ZAPI` (set to `1` to enable masked request/response logs)
+  - `DEBUG_TOKEN` (shared secret for /webhook/_env)
+  - `WEBHOOK_SECRET` and `WEBHOOK_HEADER` (to protect inbound webhook, optional)
   - `TERAPEE_BASE_URL`, `TERAPEE_UI_USER`, `TERAPEE_UI_PASS` (if using Terapee)
-  - `DEBUG_ZAPI` (set to `1` to enable debug stub for local testing)
 
 4) Build & Start Command
 - Railway usually detects Python app. Make sure `Procfile` exists (this repo includes one):

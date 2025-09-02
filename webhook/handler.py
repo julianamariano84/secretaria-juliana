@@ -2,7 +2,7 @@
 import os
 import logging
 from .registrations import append_response, get_pending, create_pending
-from .registrations import apply_answers, mark_payment_confirmed
+from .registrations import apply_answers, mark_payment_confirmed, set_scheduling_status
 
 log = logging.getLogger(__name__)
 
@@ -161,6 +161,12 @@ def inbound():
                                             send_text(phone, f"Para finalizar o agendamento, por favor efetue o pagamento: {url}")
                                         except Exception:
                                             log.exception("failed to send payment link to %s", phone)
+                                        # anticipate scheduling preferences after payment
+                                        try:
+                                            set_scheduling_status(phone, 'awaiting_time')
+                                            send_text(phone, "Depois do pagamento, me diga os melhores dias/horários para a consulta e eu encaixo na agenda da Juliana, combinado?")
+                                        except Exception:
+                                            log.exception('failed to set scheduling status for %s', phone)
                                 except Exception:
                                     log.exception('failed to create payment for %s', phone)
                     except Exception:

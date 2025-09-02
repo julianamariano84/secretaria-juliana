@@ -85,9 +85,15 @@ def create_pending(phone: str, name_hint: Optional[str] = None, initiated_by: st
         'initiated_by': initiated_by,
         'questions': questions,
         'answers': {},
-    'history': [],
-    # payment info: will store provider id, url and status when payment created
-    'payment': None,
+        'history': [],
+        # payment info: will store provider id, url and status when payment created
+        'payment': None,
+        # scheduling info for Terapee integration
+        'scheduling': {
+            'status': 'idle',  # idle | awaiting_time | requested | booked | failed
+            'requested': None,  # {start_iso, end_iso}
+            'result': None,     # booking result or error
+        },
     }
     items.append(rec)
     _write_all(items)
@@ -249,6 +255,26 @@ def mark_payment_confirmed(phone: str, payment_status: Dict[str, Any]) -> Option
     rec.setdefault('payment', {})['status'] = payment_status
     rec['status'] = 'created'
     rec['created_at'] = int(time.time())
+    for i, it in enumerate(items):
+        if it.get('phone') == phone:
+            items[i] = rec
+            break
+    _write_all(items)
+    return rec
+
+
+def set_scheduling_status(phone: str, status: str, payload: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+    items = _read_all()
+    rec = _find_by_phone(items, phone)
+    if not rec:
+        return None
+    sch = rec.setdefault('scheduling', {})
+    sch['status'] = status
+    if payload:
+        if status == 'requested':
+            sch['requested'] = payload
+        else:
+            sch['result'] = payload
     for i, it in enumerate(items):
         if it.get('phone') == phone:
             items[i] = rec

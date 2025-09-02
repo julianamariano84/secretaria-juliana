@@ -235,15 +235,21 @@ def generate_registration_questions(context: Optional[str] = None) -> Optional[L
         logger.debug("[openai_client] client init error: %s", e)
         logger.info("openai_client: falling back from question generation because client init failed")
         return {"error": str(e)}
-    prompt = "Gere 5 perguntas curtas para coletar nome completo, data de nascimento, CPF, endereço e consentimento para cadastro."
+    prompt = "Gere 5 perguntas curtas, claras e simpáticas para coletar nome completo, data de nascimento, CPF, endereço e consentimento para cadastro."
     if context:
         prompt = context + "\n\n" + prompt
 
     try:
         logger.info("openai_client: calling OpenAI API to generate registration questions; model=%s", os.getenv('OPENAI_MODEL', 'gpt-3.5-turbo'))
+        _name = os.getenv('SECRETARY_NAME', 'Márcia')
+        _title = os.getenv('SECRETARY_TITLE', 'secretária da fonoaudióloga Juliana Mariano')
+        system_msg = (
+            f"Você é {_name}, {_title}. Seja acolhedora, simpática e objetiva. "
+            "Responda sempre em português do Brasil e mantenha as perguntas curtas."
+        )
         resp = client.chat.completions.create(
             model=os.getenv('OPENAI_MODEL', 'gpt-3.5-turbo'),
-            messages=[{"role": "user", "content": prompt}],
+            messages=[{"role": "system", "content": system_msg}, {"role": "user", "content": prompt}],
             temperature=0.7,
             max_tokens=300,
         )
@@ -271,19 +277,26 @@ def generate_greeting_and_action(text: str, first_contact: bool = False) -> Dict
     This first tries the OpenAI client and falls back to a lightweight
     heuristic using local_extract_registration_fields.
     """
-    # default fallback
-    fallback = {"greeting": "Olá! Obrigado pela mensagem.", "action": "ask", "question": "Qual seu nome completo?"}
+    # default fallback (persona-based)
+    _fallback_name = os.getenv('SECRETARY_NAME', 'Márcia')
+    _fallback_title = os.getenv('SECRETARY_TITLE', 'secretária da fonoaudióloga Juliana Mariano')
+    fallback = {
+        "greeting": f"Oi! Eu sou a {_fallback_name}, {_fallback_title}.",
+        "action": "ask",
+        "question": "Qual seu nome completo?",
+    }
     if not isinstance(text, str) or not text.strip():
         return fallback
 
     # detect short greeting-only messages and, on first contact, return a
-    # creative presentation using a secretary name from env
+    # creative presentation using a secretary persona from env
     import re
     greeting_rx = re.compile(r"^\s*(oi|ol[áa]|ola|bom dia|boa tarde|boa noite|oi\b|olá\b)[!,.\s]*$", re.I)
     if first_contact and greeting_rx.match(text.strip()[:50]):
         name = os.getenv('SECRETARY_NAME', 'Márcia')
-        greet = f"Oi! Eu sou a {name}, secretária da Juliana Mariano. Em que posso ajudar hoje?"
-        return {"greeting": greet, "action": "ask", "question": "Posso começar pedindo seu nome completo?"}
+        title = os.getenv('SECRETARY_TITLE', 'secretária da fonoaudióloga Juliana Mariano')
+    greet = f"Oi! Eu sou a {name}, {title}. Geralmente falo com os pais ou responsáveis. Se preferir, pode me mandar áudio, tá?"
+    return {"greeting": greet, "action": "ask", "question": "Posso começar pedindo o nome completo do paciente?"}
 
     try:
         logger.info("openai_client: attempting to initialize client for greeting/action")
@@ -310,18 +323,32 @@ def generate_greeting_and_action(text: str, first_contact: bool = False) -> Dict
 
     # If we have a client, ask the model for a small JSON response
     prompt = (
-        "Leia a mensagem abaixo e gere UM JSON com as chaves: greeting, action, question.\n"
-        "- greeting: uma única frase curta de saudação em PT-BR\n"
-        "- action: 'ask'|'confirm'|'none' (o que o atendimento deve fazer a seguir)\n"
-        "- question: se action=='ask', coloque a pergunta a ser enviada; caso contrário null\n\n"
-        "Mensagem:\n" + text + "\n\nJSON:" 
+        "Leia a mensagem do paciente abaixo e gere UM JSON com as chaves: greeting, action, question.\n"
+        "- greeting: uma única frase curta e simpática de saudação em PT-BR\n"
+        "- action: 'ask'|'confirm'|'none' (próximo passo do atendimento)\n"
+        "- question: se action=='ask', escreva a pergunta objetiva a ser enviada; caso contrário null\n\n"
+        "Mensagem:\n" + text + "\n\nJSON:"
     )
 
     try:
         logger.info("openai_client: calling OpenAI API to generate greeting/action; model=%s", os.getenv('OPENAI_MODEL', 'gpt-3.5-turbo'))
+        # persona setup
+        _name = os.getenv('SECRETARY_NAME', 'Márcia')
+        _title = os.getenv('SECRETARY_TITLE', 'secretária da fonoaudióloga Juliana Mariano')
+        system_msg = (
+            f"Você é {_name}, {_title}. \n"
+            "Contexto: na maioria das vezes você fala com pais ou responsáveis do paciente.\n"
+            "Responsabilidades: gerenciar agenda na plataforma Terapee, orientar e receber o pagamento da consulta e apoiar na contabilização.\n"
+            "Estilo: linguagem fluida, acolhedora, levemente coloquial e objetiva, sempre em português do Brasil.\n"
+            "Capacidades: você pode receber e entender mensagens de áudio (se a pessoa preferir).\n"
+            "Instruções de saída: responda curto e produza apenas o JSON pedido (greeting, action, question), sem explicações."
+        )
         resp = client.chat.completions.create(
             model=os.getenv('OPENAI_MODEL', 'gpt-3.5-turbo'),
-            messages=[{"role": "user", "content": prompt}],
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": prompt},
+            ],
             temperature=0,
             max_tokens=200,
         )
